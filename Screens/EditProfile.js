@@ -48,7 +48,7 @@ const EditProfile = ({
     >
       <View style={styles.modalOverlay}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'position' : 'height'}
           style={styles.modalContainer}
         >
           <View style={styles.modalContent}>
@@ -66,8 +66,6 @@ const EditProfile = ({
             {/* Scrollable Form Fields */}
             <ScrollView
               style={styles.formContainer}
-              contentContainerStyle={{ flexGrow: 1 }}
-              keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.formGroup}>
@@ -92,7 +90,7 @@ const EditProfile = ({
                 />
               </View>
 
-              <View style={styles.formGroup}>
+              <View style={[styles.formGroup, { marginBottom: 40 }]}>
                 <Text style={styles.label}>Phone Number</Text>
                 <TextInput
                   style={styles.input}
@@ -115,7 +113,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
-    marginBottom: -150,
   },
   modalContainer: {
     flex: 1,
@@ -126,7 +123,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '85%',
-    minHeight: '60%',
+    minHeight: '49%',
   },
   modalHeader: {
     flexDirection: 'row',

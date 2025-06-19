@@ -16,19 +16,19 @@ const MedicalReceipts = ({ navigation }) => {
   const receipts = [
     {
       id: 1,
-      store: 'Apollo Pharmacy',
-      date: '15/06/2025',
-      category: 'Medical',
+      vendorName: 'Apollo Pharmacy',
+      dateReceived: '15/06/2025',
+      groupName: 'Medical',
       amount: '$24.50',
       icon: '💊',
       medicine: 'Paracetamol 500mg',
-      expiryDate: '25/07/2025',
+      expiryDate: '25/06/2025',
     },
     {
       id: 2,
-      store: 'MedPlus',
-      date: '10/06/2025',
-      category: 'Medical',
+      vendorName: 'MedPlus',
+      dateReceived: '10/06/2025',
+      groupName: 'Medical',
       amount: '$18.75',
       icon: '🏥',
       medicine: 'Amoxicillin 250mg',
@@ -36,9 +36,9 @@ const MedicalReceipts = ({ navigation }) => {
     },
     {
       id: 3,
-      store: 'CVS Pharmacy',
-      date: '08/06/2025',
-      category: 'Medical',
+      vendorName: 'CVS Pharmacy',
+      dateReceived: '08/06/2025',
+      groupName: 'Medical',
       amount: '$32.90',
       icon: '💉',
       medicine: 'Insulin Glargine',
@@ -46,9 +46,9 @@ const MedicalReceipts = ({ navigation }) => {
     },
     {
       id: 4,
-      store: 'Walgreens',
-      date: '05/06/2025',
-      category: 'Medical',
+      vendorName: 'Walgreens',
+      dateReceived: '05/06/2025',
+      groupName: 'Medical',
       amount: '$15.25',
       icon: '🩺',
       medicine: 'Ibuprofen 400mg',
@@ -56,9 +56,9 @@ const MedicalReceipts = ({ navigation }) => {
     },
     {
       id: 5,
-      store: 'Local Clinic',
-      date: '02/06/2025',
-      category: 'Medical',
+      vendorName: 'Local Clinic',
+      dateReceived: '02/06/2025',
+      groupName: 'Medical',
       amount: '$45.00',
       icon: '🏩',
       medicine: 'Blood Pressure Monitor',
@@ -66,9 +66,9 @@ const MedicalReceipts = ({ navigation }) => {
     },
     {
       id: 6,
-      store: 'HealthMart',
-      date: '28/05/2025',
-      category: 'Medical',
+      vendorName: 'HealthMart',
+      dateReceived: '28/05/2025',
+      groupName: 'Medical',
       amount: '$12.80',
       icon: '💊',
       medicine: 'Vitamin D3 Tablets',
@@ -175,9 +175,9 @@ const MedicalReceipts = ({ navigation }) => {
 
                 <View style={styles.receiptContent}>
                   <View style={styles.receiptInfo}>
-                    <Text style={styles.storeName}>{receipt.store}</Text>
-                    <Text style={styles.receiptDate}>{receipt.date}</Text>
-                    <Text style={styles.receiptCategory}>{receipt.category}</Text>
+                    <Text style={styles.storeName}>{receipt.vendorName}</Text>
+                    <Text style={styles.receiptDate}>{receipt.dateReceived}</Text>
+                    <Text style={styles.receiptCategory}>{receipt.groupName}</Text>
                     <Text style={{ fontSize: 12, color: '#666', fontWeight: 'bold' }}>{receipt.medicine}</Text>
                     <Text style={{ fontSize: 12, color: '#666' }}>Expiry: {receipt.expiryDate}</Text>
                   </View>

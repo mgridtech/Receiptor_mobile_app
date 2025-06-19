@@ -24,11 +24,11 @@ const HomeScreen = ({ navigation }) => {
 
   const exampleReceipt = {
     id: 1,
-    vendorName: 'Target',
-    dateReceived: '12/08/2024',
-    groupName: 'Shopping',
-    amount: '$41.95',
-    validupto: '12/08/2026'
+    vendorName: 'Apollo Pharmacy',
+    dateReceived: '12/05/2024',
+    groupName: 'Medical',
+    amount: '$24.50',
+    validupto: '25/07/2025'
   };
 
   return (
@@ -111,7 +111,7 @@ const HomeScreen = ({ navigation }) => {
             <Text style={styles.expiryText}>
               This medicine is expiring soon - Check expiry date
             </Text>
-            <Text style={styles.expiryDate}>Expires: Dec 25, 2025</Text>
+            <Text style={styles.expiryDate}>Expires: June 25, 2025</Text>
           </View>
           <TouchableOpacity
             style={styles.alertButton}

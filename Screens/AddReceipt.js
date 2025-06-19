@@ -188,6 +188,7 @@ const AddReceipt = ({ navigation }) => {
 
     const removeSelectedFile = () => {
         setSelectedFile(null);
+        setShowAddForm(false);
     };
 
     return (
@@ -282,7 +283,7 @@ const AddReceipt = ({ navigation }) => {
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Choose Upload Method</Text>
+                        <Text style={styles.modalTitle}>Choose Upload Option</Text>
 
                         <TouchableOpacity
                             style={styles.modalOption}
