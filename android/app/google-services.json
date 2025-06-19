@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1029356825878",
+    "project_id": "carfixit-da19c",
+    "storage_bucket": "carfixit-da19c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1029356825878:android:f894ae75640f3a4d8cf437",
+        "android_client_info": {
+          "package_name": "com.carfixit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMhE0XsPOgm-6uvr2ziFZcib6H4E_HZGk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
