@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, S
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { createReceipt } from '../Services/Services';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const groupOptions = ['Household Essentials', 'Groceries', 'Electronics', 'Medical'];
 
@@ -29,6 +30,7 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
         if (ocrData) {
             setFormData(prevData => ({
                 ...prevData,
+                groupName: ocrData.groupName || prevData.groupName, // Auto-select group if detected
                 vendorName: ocrData.vendorName || prevData.vendorName,
                 amount: ocrData.amount || prevData.amount,
                 dateReceived: formatDateForForm(ocrData.dateReceived) || prevData.dateReceived,
@@ -71,8 +73,22 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
             return null;
         }
     };
+    const formatDateForAPI = (dateStr) => {
+        if (!dateStr) return null;
+        const [day, month, year] = dateStr.split('-');
+        return `${year}-${month}-${day}`;
+    };
+    const getCategoryId = (groupName) => {
+        const categoryMap = {
+            'Household Essentials': 1,
+            'Groceries': 2,
+            'Electronics': 3,
+            'Medical': 4
+        };
+        return categoryMap[groupName] || 1;
+    };
 
-    const handleSave = async () => {
+    const handleSave = async (retryCount = 0) => {
         if (
             !formData.groupName ||
             formData.groupName === "" ||
@@ -85,9 +101,29 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
         }
 
         try {
+            // Get userId from AsyncStorage
+            const firebaseUserId = await AsyncStorage.getItem('firebaseUserId');
+            if (!firebaseUserId) {
+                Alert.alert('Error', 'User authentication required. Please login again.');
+                return;
+            }
+
+            console.log('Starting receipt save process... Attempt:', retryCount + 1);
+            console.log('Form data:', formData);
+
             const apiFormData = new FormData();
 
+            // Optimize file handling
             if (selectedFile) {
+                console.log('Adding file to FormData:', selectedFile.name);
+
+                // Check file size (reduce to 2MB for better performance)
+                const maxFileSize = 2 * 1024 * 1024; // 2MB limit
+                if (selectedFile.size && selectedFile.size > maxFileSize) {
+                    Alert.alert('Error', 'File size too large. Please select a smaller image (max 2MB).');
+                    return;
+                }
+
                 apiFormData.append('receiptFile', {
                     uri: selectedFile.uri,
                     type: selectedFile.mimeType || 'image/jpeg',
@@ -95,24 +131,35 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
                 });
             }
 
-            apiFormData.append('vendorName', formData.vendorName);
-            apiFormData.append('note', formData.note || '');
-            apiFormData.append('purchaseDate', formData.dateReceived);
-            apiFormData.append('totalAmount', formData.amount);
-            apiFormData.append('validUntil', formData.expiryDate || formData.dateReceived);
-            apiFormData.append('userId', '1');
-            apiFormData.append('categoryId', formData.groupName.toLowerCase() === 'medical' ? '1' : '2');
+            const purchaseDate = formatDateForAPI(formData.dateReceived);
+            const validUntilDate = formatDateForAPI(formData.wore || formData.dateReceived);
+            const categoryId = getCategoryId(formData.groupName);
+
+            console.log('Formatted dates - Purchase:', purchaseDate, 'Valid Until:', validUntilDate);
+            console.log('Category ID:', categoryId);
+
+            // Add all form fields (removed userId)
+            apiFormData.append('vendorName', formData.vendorName.trim());
+            apiFormData.append('note', formData.note?.trim() || '');
+            apiFormData.append('purchaseDate', purchaseDate);
+            apiFormData.append('totalAmount', formData.amount.trim());
+            apiFormData.append('validUntil', validUntilDate);
+            apiFormData.append('categoryId', categoryId.toString());
 
             if (formData.groupName.toLowerCase() === 'medical' && formData.medicines) {
                 apiFormData.append('medicines', JSON.stringify(formData.medicines));
             }
 
+            console.log('Calling API...');
+
             const response = await createReceipt(apiFormData);
+            console.log('API call successful:', response);
 
             Alert.alert('Success', 'Receipt saved successfully!');
 
             if (onSave) onSave(formData);
 
+            // Navigate based on category
             if (formData.groupName.toLowerCase() === 'medical') {
                 navigation.navigate('MedicalReceipts');
             } else {
@@ -120,7 +167,39 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
             }
         } catch (error) {
             console.error('Error saving receipt:', error);
-            Alert.alert('Error', 'Failed to save receipt. Please try again.');
+
+            // Retry logic for database timeouts
+            if (error.message.includes('Database connection timeout') && retryCount < 2) {
+                Alert.alert(
+                    'Retry?',
+                    `Database is busy. Attempt ${retryCount + 1} failed. Try again?`,
+                    [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                            text: 'Retry',
+                            onPress: () => {
+                                setTimeout(() => handleSave(retryCount + 1), 2000); // Wait 2 seconds before retry
+                            }
+                        }
+                    ]
+                );
+                return;
+            }
+
+            // Show user-friendly error messages
+            let errorMessage = 'Failed to save receipt. Please try again.';
+
+            if (error.message.includes('Database connection timeout')) {
+                errorMessage = 'Database is currently busy. Please try again in a few minutes.';
+            } else if (error.message.includes('Server is temporarily unavailable')) {
+                errorMessage = 'Server is temporarily unavailable. Please try again later.';
+            } else if (error.message.includes('authentication')) {
+                errorMessage = 'Authentication failed. Please login again.';
+            } else if (error.message.includes('Invalid data format')) {
+                errorMessage = 'Please check your input data and try again.';
+            }
+
+            Alert.alert('Error', errorMessage);
         }
     };
 

@@ -13,6 +13,7 @@ import {
 import ForgotPasswordScreen from './ForgotPass';
 import auth from '@react-native-firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {jwtDecode} from 'jwt-decode';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -23,105 +24,113 @@ const LoginScreen = ({ navigation }) => {
 
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      return Alert.alert('Missing fields', 'Please enter both email and password');
-    }
+  if (!email || !password) {
+    return Alert.alert('Missing fields', 'Please enter both email and password');
+  }
 
-    try {
-      const { user } = await auth().signInWithEmailAndPassword(email, password);
-      const token = await user.getIdToken();
-      console.log('token:', token);
+  try {
+    const { user } = await auth().signInWithEmailAndPassword(email, password);
+    const token = await user.getIdToken();
+    console.log('Token:', token);
 
-      await AsyncStorage.setItem('userToken', token);
-      console.log('Token stored successfully');
+    const decoded = jwtDecode(token);
+    console.log('Decoded JWT:', decoded);
 
-      const response = await fetch(`${baseURL}/user/profile`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+    const firebaseUserId = decoded.user_id || decoded.userId;
+    console.log('Firebase User ID:', firebaseUserId);
 
-      if (response.ok) {
-        const userData = await response.json();
-        console.log('User data from API:', userData);
+    await AsyncStorage.setItem('userToken', token);
+    await AsyncStorage.setItem('firebaseUserId', firebaseUserId);
 
-        await AsyncStorage.setItem('userEmail', user.email);
+    const response = await fetch(`${baseURL}/user/profile`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    });
 
-        if (userData.data && userData.data.name && userData.data.name.trim() !== '') {
-          await AsyncStorage.setItem('userName', userData.data.name);
-        } else {
-          console.log('Name not found in user data, skipping storage');
-        }
+    if (response.ok) {
+      const userData = await response.json();
+      console.log('User data from API:', userData);
 
-        const storedToken = await AsyncStorage.getItem('userToken');
-        const storedEmail = await AsyncStorage.getItem('userEmail');
-        const storedName = await AsyncStorage.getItem('userName');
+      await AsyncStorage.setItem('userEmail', user.email);
 
-        console.log('=== AsyncStorage Contents ===');
-        console.log('Stored Token:', storedToken);
-        console.log('Stored Email:', storedEmail);
-        console.log('Stored Name:', storedName);
-        console.log('=============================');
-
-        const displayName = userData.name || user.email;
-        Alert.alert(
-          'Login Successful',
-          `Welcome back, ${displayName}!`,
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.replace('Home'),
-            },
-          ],
-          { cancelable: false }
-        );
+      if (userData.data && userData.data.name && userData.data.name.trim() !== '') {
+        await AsyncStorage.setItem('userName', userData.data.name);
       } else {
-        await AsyncStorage.setItem('userEmail', user.email);
-
-        console.log('=== AsyncStorage Contents (Fallback) ===');
-        console.log('Stored Token:', await AsyncStorage.getItem('userToken'));
-        console.log('Stored Email:', await AsyncStorage.getItem('userEmail'));
-        console.log('Stored Name:', 'API call failed');
-        console.log('=======================================');
-
-        Alert.alert(
-          'Login Successful',
-          `Welcome back, ${user.email}!`,
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.replace('Home'),
-            },
-          ],
-          { cancelable: false }
-        );
-      }
-    } catch (e) {
-      console.error('Login Error:', e);
-
-      let message = 'An unexpected error occurred. Please try again.';
-      switch (e.code) {
-        case 'auth/invalid-email':
-          message = 'That email address is badly formatted.';
-          break;
-        case 'auth/user-not-found':
-        case 'auth/wrong-password':
-        case 'auth/invalid-credential':
-          message = 'Invalid email or password.';
-          break;
-        case 'auth/user-disabled':
-          message = 'This user account has been disabled.';
-          break;
-        case 'auth/network-request-failed':
-          message = 'Network error: please check your connection.';
-          break;
+        console.log('Name not found in user data, skipping storage');
       }
 
-      Alert.alert('Login Failed', message);
+      const storedToken = await AsyncStorage.getItem('userToken');
+      const storedEmail = await AsyncStorage.getItem('userEmail');
+      const storedName = await AsyncStorage.getItem('userName');
+
+      console.log('=== AsyncStorage Contents ===');
+      console.log('Stored Token:', storedToken);
+      console.log('Stored Email:', storedEmail);
+      console.log('Stored Name:', storedName);
+      console.log('Stored Firebase UID:', firebaseUserId);
+      console.log('=============================');
+
+      const displayName = userData?.data?.name || user.email;
+      Alert.alert(
+        'Login Successful',
+        `Welcome back, ${displayName}!`,
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.replace('Home'),
+          },
+        ],
+        { cancelable: false }
+      );
+    } else {
+      await AsyncStorage.setItem('userEmail', user.email);
+
+      console.log('=== AsyncStorage Contents (Fallback) ===');
+      console.log('Stored Token:', await AsyncStorage.getItem('userToken'));
+      console.log('Stored Email:', await AsyncStorage.getItem('userEmail'));
+      console.log('Stored Name:', 'API call failed');
+      console.log('Stored Firebase UID:', firebaseUserId);
+      console.log('=======================================');
+
+      Alert.alert(
+        'Login Successful',
+        `Welcome back, ${user.email}!`,
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.replace('Home'),
+          },
+        ],
+        { cancelable: false }
+      );
     }
-  };
+  } catch (e) {
+    console.error('Login Error:', e);
+
+    let message = 'An unexpected error occurred. Please try again.';
+    switch (e.code) {
+      case 'auth/invalid-email':
+        message = 'That email address is badly formatted.';
+        break;
+      case 'auth/user-not-found':
+      case 'auth/wrong-password':
+      case 'auth/invalid-credential':
+        message = 'Invalid email or password.';
+        break;
+      case 'auth/user-disabled':
+        message = 'This user account has been disabled.';
+        break;
+      case 'auth/network-request-failed':
+        message = 'Network error: please check your connection.';
+        break;
+    }
+
+    Alert.alert('Login Failed', message);
+  }
+};
 
   return (
     <KeyboardAvoidingView

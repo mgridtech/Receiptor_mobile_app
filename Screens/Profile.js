@@ -77,7 +77,7 @@ const ProfileScreen = ({ navigation }) => {
           onPress: async () => {
             try {
               await AsyncStorage.removeItem('userToken');
-              console.log('User logged out');
+              console.log('User logged out,token removed from AsyncStorage');
               navigation.replace('Login');
             } catch (error) {
               console.error('Error during logout:', error);

@@ -121,7 +121,6 @@ const AddReceipt = ({ navigation }) => {
         const extractedText = ocrResponse.data?.[0] || '';
         let wordsArray = ocrResponse.data || [];
 
-
         if (!Array.isArray(wordsArray)) {
             wordsArray = [];
         }
@@ -135,51 +134,135 @@ const AddReceipt = ({ navigation }) => {
         let vendorName = '';
         let amount = '';
         let expiryDate = '';
+        let groupName = '';
 
+        // Check if "Medical" word exists anywhere in the receipt - if yes, set group as Medical
+        const hasMedical = wordsArray.some(word =>
+            word && typeof word === 'string' && word.toLowerCase() === 'medical'
+        );
+
+        if (hasMedical) {
+            groupName = 'Medical';
+        }
+
+        // Extract vendor name - look for "Name:" or "Name" pattern and get the value after it
         if (wordsArray.length > 0) {
-            for (let i = 0; i < wordsArray.length - 2; i++) {
-                const word1 = wordsArray[i];
-                const word2 = wordsArray[i + 1];
-                const word3 = wordsArray[i + 2];
+            for (let i = 0; i < wordsArray.length - 1; i++) {
+                const currentWord = wordsArray[i];
+                const nextWord = wordsArray[i + 1];
 
-                if (word1 && word2 && word3 &&
-                    /^[A-Z]+$/.test(word1) &&
-                    /^[A-Z]+$/.test(word2) &&
-                    /^[A-Z]+$/.test(word3) &&
-                    word1.length > 2 && word2.length > 2 && word3.length > 2) {
-                    vendorName = `${word1} ${word2} ${word3}`;
-                    break;
-                }
-            }
+                // Look for "Name:" pattern (exact match)
+                if (currentWord && typeof currentWord === 'string' &&
+                    (currentWord === 'Name:' || currentWord === 'Name')) {
 
-            if (!vendorName) {
-                const nameWords = wordsArray.filter(word =>
-                    word &&
-                    typeof word === 'string' &&
-                    /^[A-Z]{4,}$/.test(word) &&
-                    !word.includes('RANBAXY') &&
-                    !word.includes('GOVERNMENT') &&
-                    !word.includes('TRANSPORT') &&
-                    !word.includes('DEPARTMENT')
-                );
+                    // Get the next word(s) as vendor name
+                    if (nextWord && typeof nextWord === 'string') {
+                        let nameWords = [nextWord];
 
-                if (nameWords.length >= 2) {
-                    vendorName = nameWords.slice(0, 3).join(' ');
+                        // Look ahead for more name words (until we hit a colon or specific keywords)
+                        for (let j = i + 2; j < Math.min(i + 5, wordsArray.length); j++) {
+                            const word = wordsArray[j];
+                            if (word && typeof word === 'string' &&
+                                !word.includes(':') &&
+                                !word.toLowerCase().includes('address') &&
+                                !word.toLowerCase().includes('phone') &&
+                                !word.toLowerCase().includes('date') &&
+                                !word.toLowerCase().includes('time') &&
+                                !word.toLowerCase().includes('receipt')) {
+                                nameWords.push(word);
+                            } else {
+                                break;
+                            }
+                        }
+
+                        vendorName = nameWords.join(' ').replace(/^:\s*/, '');
+                    }
                 }
             }
         }
 
+        // Keep original amount extraction logic
         const amountRegex = /\d+\.\d{2}/g;
         const amounts = extractedText.match(amountRegex) || [];
         if (amounts.length > 0) {
             amount = Math.max(...amounts.map(parseFloat)).toString();
         }
 
-        const dateRegex = /\d{2}-\d{2}-\d{4}/g;
-        const dates = extractedText.match(dateRegex) || [];
+        // Extract any date from the receipt
+        if (wordsArray.length > 0) {
+            // Look for various date patterns in the words array
+            for (let i = 0; i < wordsArray.length; i++) {
+                const word = wordsArray[i];
 
-        if (dates.length > 0) {
-            expiryDate = dates[dates.length - 1];
+                if (word && typeof word === 'string') {
+                    // Check for date formats like DD-MM-YYYY, MM-DD-YYYY, YYYY-MM-DD
+                    const dateMatch = word.match(/\d{1,2}[-/]\d{1,2}[-/]\d{4}|\d{4}[-/]\d{1,2}[-/]\d{1,2}/);
+                    if (dateMatch) {
+                        expiryDate = formatDateString(dateMatch[0]);
+                        break;
+                    }
+
+                    // Check for month name patterns (May, June, etc.)
+                    if (word.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i)) {
+                        const month = word;
+                        const day = wordsArray[i + 1];
+                        const year = wordsArray[i + 2];
+
+                        if (day && year &&
+                            day.replace(',', '').match(/^\d{1,2}$/) &&
+                            year.match(/^\d{4}$/)) {
+                            const monthNum = getMonthNumber(month);
+                            const dayNum = day.replace(',', '');
+                            expiryDate = `${dayNum.padStart(2, '0')}-${monthNum.padStart(2, '0')}-${year}`;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // If no date found in individual words, check the full text
+            if (!expiryDate) {
+                const fullTextDateMatch = extractedText.match(/\d{1,2}[-/]\d{1,2}[-/]\d{4}|\d{4}[-/]\d{1,2}[-/]\d{1,2}/);
+                if (fullTextDateMatch) {
+                    expiryDate = formatDateString(fullTextDateMatch[0]);
+                }
+            }
+        }
+
+        // Helper function to convert date formats to DD-MM-YYYY
+        function formatDateString(dateStr) {
+            try {
+                if (dateStr.match(/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/)) {
+                    const parts = dateStr.split(/[-/]/);
+                    const day = parts[0].padStart(2, '0');
+                    const month = parts[1].padStart(2, '0');
+                    const year = parts[2];
+                    return `${day}-${month}-${year}`;
+                }
+
+                if (dateStr.match(/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/)) {
+                    const parts = dateStr.split(/[-/]/);
+                    const year = parts[0];
+                    const month = parts[1].padStart(2, '0');
+                    const day = parts[2].padStart(2, '0');
+                    return `${day}-${month}-${year}`;
+                }
+
+                return dateStr;
+            } catch (error) {
+                console.error('Date formatting error:', error);
+                return dateStr;
+            }
+        }
+
+        // Helper function to get month number
+        function getMonthNumber(monthName) {
+            const months = {
+                'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+                'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+                'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+            };
+            return months[monthName.toLowerCase().substring(0, 3)] || '01';
         }
 
         const result = {
@@ -187,6 +270,7 @@ const AddReceipt = ({ navigation }) => {
             amount: amount || '',
             dateReceived: '',
             expiryDate: expiryDate || '',
+            groupName: groupName || '', // Add group name to the result
         };
 
         console.log('Processed OCR data:', result);
@@ -442,7 +526,7 @@ const AddReceipt = ({ navigation }) => {
                         <AddForm
                             navigation={navigation}
                             ocrData={ocrData}
-                            selectedFile={selectedFile} 
+                            selectedFile={selectedFile}
                             onSave={(data) => {
                                 setShowAddForm(false);
                             }}

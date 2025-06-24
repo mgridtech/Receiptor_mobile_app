@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import auth from '@react-native-firebase/auth';
 
 // const baseURL = "http://10.0.2.2:8010"; // For Android emulator
 const baseURL = "http://192.168.1.11:8010"; // For physical device
@@ -173,7 +173,7 @@ export const updateUserProfile = async ({ name, email, phone }) => {
         console.log('Attempting to update profile with URL:', `${baseURL}/user/updateProfile`);
 
         const token = await AsyncStorage.getItem('userToken');
-        
+
         if (!token) {
             throw new Error('Authentication token not found. Please login again.');
         }
@@ -218,23 +218,67 @@ export const updateUserProfile = async ({ name, email, phone }) => {
 
 export const createReceipt = async (formData) => {
     try {
+        const currentUser = auth().currentUser;
+        if (!currentUser) {
+            throw new Error('User not authenticated');
+        }
+
+        const idToken = await currentUser.getIdToken();
+        console.log('Making request to:', `${baseURL}/create/receipt`);
+        console.log('Firebase UID:', currentUser.uid);
+
         const response = await fetch(`${baseURL}/create/receipt`, {
             method: 'POST',
             body: formData,
             headers: {
                 'Accept': 'application/json',
+                'Authorization': `Bearer ${idToken}`,
             },
+            timeout: 120000, // Increase timeout to 2 minutes for database issues
         });
 
+        console.log('Response status:', response.status);
+
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+            const contentType = response.headers.get('content-type');
+            let errorText;
+            
+            if (contentType && contentType.includes('application/json')) {
+                const errorData = await response.json();
+                errorText = errorData.message || JSON.stringify(errorData);
+            } else {
+                errorText = await response.text();
+            }
+            
+            console.error('API Error Response:', errorText);
+            
+            // Handle specific error cases
+            if (response.status === 408 || errorText.includes('timeout') || errorText.includes('SequelizeConnectionAcquireTimeoutError')) {
+                throw new Error('Database connection timeout. Please try again in a few minutes.');
+            }
+            
+            if (response.status === 400 && errorText.includes('Validation failed')) {
+                throw new Error('Invalid data format. Please check your input and try again.');
+            }
+            
+            if (response.status >= 500) {
+                throw new Error('Server is temporarily unavailable. Please try again later.');
+            }
+            
+            throw new Error(`Server error (${response.status}). Please try again.`);
         }
 
         const data = await response.json();
+        console.log('Success response:', data);
         return data;
     } catch (error) {
         console.error('Create receipt error:', error);
+        
+        // Handle network errors specifically
+        if (error.message === 'Network request failed') {
+            throw new Error('Connection failed. Please check your internet connection and try again.');
+        }
+        
         throw error;
     }
-};
+}

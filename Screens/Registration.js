@@ -12,6 +12,7 @@ import {
   Alert
 } from 'react-native';
 import { register } from '../Services/Services';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Registration = ({ navigation }) => {
   const [name, setName] = useState('');
@@ -29,6 +30,14 @@ const Registration = ({ navigation }) => {
     console.log('Register API response:', response);
 
     if (response.success) {
+      const userId = response?.data?.[0]?.id;
+
+      if (userId) {
+        await AsyncStorage.setItem('userId', userId.toString());
+        console.log('User ID stored in AsyncStorage:', userId);
+      } else {
+        console.log('User ID not found in response data.');
+      }
       Alert.alert(
         'Success',
         'Registration successful! You can now login.',
