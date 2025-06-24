@@ -23,7 +23,6 @@ const ProfileScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch user profile on component mount
   useEffect(() => {
     fetchUserProfile();
   }, []);
@@ -33,7 +32,6 @@ const ProfileScreen = ({ navigation }) => {
     setLoading(true);
     setError(null);
     
-    // Get the token from AsyncStorage
     const token = await AsyncStorage.getItem('userToken');
     
     if (!token) {
@@ -42,7 +40,6 @@ const ProfileScreen = ({ navigation }) => {
       return;
     }
 
-    // Add debugging functions
     await testTokenFormat(token);
     await testServerConnection();
 
@@ -79,7 +76,6 @@ const ProfileScreen = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Clear the stored token
               await AsyncStorage.removeItem('userToken');
               console.log('User logged out');
               navigation.replace('Login');
@@ -92,7 +88,6 @@ const ProfileScreen = ({ navigation }) => {
     );
   };
 
-  // Show loading spinner while fetching data
   if (loading) {
     return (
       <View style={[styles.mainContainer, styles.loadingContainer]}>
@@ -216,7 +211,6 @@ const ProfileScreen = ({ navigation }) => {
         onClose={() => setEditModalVisible(false)}
         onSave={(updatedProfile) => {
           setProfileData(updatedProfile);
-          // Optionally refresh from server after edit
           fetchUserProfile();
         }}
       />
@@ -305,7 +299,6 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
   },
-  // Profile Information Card
   profileInfoCard: {
     backgroundColor: '#fff',
     borderRadius: 20,
@@ -356,7 +349,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1f2937',
   },
-  // Action Buttons
   actionContainer: {
     marginHorizontal: 20,
     marginBottom: 25,

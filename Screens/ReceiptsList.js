@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   receiptList: {
     paddingHorizontal: 20,
     paddingTop: 30,
-    paddingBottom: 100, // Space for footer
+    paddingBottom: 100, 
   },
   receiptCard: {
     backgroundColor: 'white',

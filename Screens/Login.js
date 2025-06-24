@@ -18,7 +18,9 @@ const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const baseURL = "http://10.0.2.2:8010"; // For Android emulator
+  // const baseURL = "http://10.0.2.2:8010"; // For Android emulator
+  const baseURL = "http://192.168.1.11:8010"; // For physical device
+
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -30,11 +32,9 @@ const LoginScreen = ({ navigation }) => {
       const token = await user.getIdToken();
       console.log('token:', token);
 
-      // Store the token in AsyncStorage
       await AsyncStorage.setItem('userToken', token);
       console.log('Token stored successfully');
 
-      // Fetch user profile from your backend to get the name
       const response = await fetch(`${baseURL}/user/profile`, {
         method: 'GET',
         headers: {
@@ -45,19 +45,16 @@ const LoginScreen = ({ navigation }) => {
 
       if (response.ok) {
         const userData = await response.json();
-        console.log('User data from API:', userData); // Debug the API response
+        console.log('User data from API:', userData);
 
-        // Store user info including name (with null check)
         await AsyncStorage.setItem('userEmail', user.email);
 
-        // Only store name if it exists and is not null/undefined
         if (userData.data && userData.data.name && userData.data.name.trim() !== '') {
           await AsyncStorage.setItem('userName', userData.data.name);
         } else {
           console.log('Name not found in user data, skipping storage');
         }
 
-        // Console everything stored in AsyncStorage
         const storedToken = await AsyncStorage.getItem('userToken');
         const storedEmail = await AsyncStorage.getItem('userEmail');
         const storedName = await AsyncStorage.getItem('userName');
@@ -68,7 +65,6 @@ const LoginScreen = ({ navigation }) => {
         console.log('Stored Name:', storedName);
         console.log('=============================');
 
-        // Show success alert
         const displayName = userData.name || user.email;
         Alert.alert(
           'Login Successful',
@@ -82,7 +78,6 @@ const LoginScreen = ({ navigation }) => {
           { cancelable: false }
         );
       } else {
-        // Fallback if profile fetch fails
         await AsyncStorage.setItem('userEmail', user.email);
 
         console.log('=== AsyncStorage Contents (Fallback) ===');

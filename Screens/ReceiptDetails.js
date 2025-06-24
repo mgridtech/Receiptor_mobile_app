@@ -183,7 +183,7 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
                                             'Confirmation',
                                             'Do you want to stop receiving auto reminders?',
                                             [
-                                                { text: 'Cancel', style: 'cancel' }, // Do nothing, keep ON
+                                                { text: 'Cancel', style: 'cancel' },
                                                 { text: 'Yes', onPress: () => setIsAutoReminderEnabled(false) },
                                             ]
                                         );

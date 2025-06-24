@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignItems: 'center',
     paddingTop: 100,
-    paddingBottom: 50, // Add bottom padding for keyboard space
+    paddingBottom: 50,
   },
   header: {
     position: 'absolute',
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#7C3AED',
     marginBottom: 20,
     fontSize: 16,
-    paddingVertical: 12, // Increased padding for better touch area
+    paddingVertical: 12,
     color: 'black',
   },
   button: {
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   },
   signinContainer: {
     marginTop: 15,
-    marginBottom: 20, // Add margin for better spacing
+    marginBottom: 20,
   },
   signinText: {
     color: '#7C3AED',

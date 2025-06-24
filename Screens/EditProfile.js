@@ -45,7 +45,6 @@ const EditProfile = ({
     });
 
     if (result.success) {
-      // Update AsyncStorage with the new name
       await AsyncStorage.setItem('userName', tempProfileData.name.trim());
       console.log('Updated name in AsyncStorage:', tempProfileData.name.trim());
       

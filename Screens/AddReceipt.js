@@ -11,6 +11,7 @@ import {
     Image,
     PermissionsAndroid,
     Platform,
+    ActivityIndicator,
 } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DocumentPicker from 'react-native-document-picker';
@@ -21,6 +22,9 @@ const AddReceipt = ({ navigation }) => {
     const [selectedFile, setSelectedFile] = useState(null);
     const [showUploadOptions, setShowUploadOptions] = useState(false);
     const [showAddForm, setShowAddForm] = useState(false);
+    const [isProcessingOCR, setIsProcessingOCR] = useState(false);
+    const [ocrData, setOcrData] = useState(null);
+
     const requestCameraPermission = async () => {
         if (Platform.OS === 'android') {
             try {
@@ -43,6 +47,152 @@ const AddReceipt = ({ navigation }) => {
         return true;
     };
 
+    // OCR API call function
+    const callOCRAPI = async (imageUri) => {
+        setIsProcessingOCR(true);
+        try {
+            console.log('Starting OCR API call with image URI:', imageUri);
+
+            const formData = new FormData();
+            formData.append('receipt', {
+                uri: imageUri,
+                type: 'image/jpeg',
+                name: 'receipt.jpg',
+            });
+            const API_BASE_URL = 'http://192.168.1.11:8010'; // e.g., 'http://192.168.1.100:3000'
+            const apiUrl = `${API_BASE_URL}/api/ocr`;
+
+            console.log('Making request to:', apiUrl);
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Accept': 'application/json',
+                },
+                timeout: 30000,
+            });
+
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('API Error Response:', errorText);
+                throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+            }
+
+            const data = await response.json();
+            console.log('OCR Response:', data);
+
+            const processedData = processOCRData(data);
+            setOcrData(processedData);
+
+            return processedData;
+        } catch (error) {
+            console.error('OCR API Error Details:', {
+                message: error.message,
+                stack: error.stack,
+                name: error.name
+            });
+
+            let errorMessage = 'Could not extract data from image. You can still fill the form manually.';
+
+            if (error.message.includes('Network request failed')) {
+                errorMessage = 'Network connection failed. Please check your internet connection and server URL.';
+            } else if (error.message.includes('timeout')) {
+                errorMessage = 'Request timed out. Please try again.';
+            }
+
+            Alert.alert(
+                'OCR Processing Failed',
+                errorMessage,
+                [{ text: 'OK', onPress: () => { } }]
+            );
+            return null;
+        } finally {
+            setIsProcessingOCR(false);
+        }
+    };
+
+    const processOCRData = (ocrResponse) => {
+        console.log('OCR Response for processing:', ocrResponse);
+
+        const extractedText = ocrResponse.data?.[0] || '';
+        let wordsArray = ocrResponse.data || [];
+
+
+        if (!Array.isArray(wordsArray)) {
+            wordsArray = [];
+        }
+
+        if (Array.isArray(ocrResponse.data) && ocrResponse.data.length > 1 && Array.isArray(ocrResponse.data[1])) {
+            wordsArray = ocrResponse.data[1];
+        }
+
+        console.log('Words array:', wordsArray);
+
+        let vendorName = '';
+        let amount = '';
+        let expiryDate = '';
+
+        if (wordsArray.length > 0) {
+            for (let i = 0; i < wordsArray.length - 2; i++) {
+                const word1 = wordsArray[i];
+                const word2 = wordsArray[i + 1];
+                const word3 = wordsArray[i + 2];
+
+                if (word1 && word2 && word3 &&
+                    /^[A-Z]+$/.test(word1) &&
+                    /^[A-Z]+$/.test(word2) &&
+                    /^[A-Z]+$/.test(word3) &&
+                    word1.length > 2 && word2.length > 2 && word3.length > 2) {
+                    vendorName = `${word1} ${word2} ${word3}`;
+                    break;
+                }
+            }
+
+            if (!vendorName) {
+                const nameWords = wordsArray.filter(word =>
+                    word &&
+                    typeof word === 'string' &&
+                    /^[A-Z]{4,}$/.test(word) &&
+                    !word.includes('RANBAXY') &&
+                    !word.includes('GOVERNMENT') &&
+                    !word.includes('TRANSPORT') &&
+                    !word.includes('DEPARTMENT')
+                );
+
+                if (nameWords.length >= 2) {
+                    vendorName = nameWords.slice(0, 3).join(' ');
+                }
+            }
+        }
+
+        const amountRegex = /\d+\.\d{2}/g;
+        const amounts = extractedText.match(amountRegex) || [];
+        if (amounts.length > 0) {
+            amount = Math.max(...amounts.map(parseFloat)).toString();
+        }
+
+        const dateRegex = /\d{2}-\d{2}-\d{4}/g;
+        const dates = extractedText.match(dateRegex) || [];
+
+        if (dates.length > 0) {
+            expiryDate = dates[dates.length - 1];
+        }
+
+        const result = {
+            vendorName: vendorName || '',
+            amount: amount || '',
+            dateReceived: '',
+            expiryDate: expiryDate || '',
+        };
+
+        console.log('Processed OCR data:', result);
+        return result;
+    };
+
     const handleBackPress = () => {
         navigation.goBack();
     };
@@ -63,7 +213,7 @@ const AddReceipt = ({ navigation }) => {
             quality: 0.8,
         };
 
-        launchCamera(options, (response) => {
+        launchCamera(options, async (response) => {
             if (response.didCancel) {
                 console.log('User cancelled camera');
             } else if (response.errorMessage) {
@@ -71,7 +221,7 @@ const AddReceipt = ({ navigation }) => {
                 Alert.alert('Error', 'Failed to open camera');
             } else if (response.assets && response.assets[0]) {
                 const asset = response.assets[0];
-                setSelectedFile({
+                const fileData = {
                     type: 'camera',
                     name: asset.fileName || 'Camera Photo',
                     uri: asset.uri,
@@ -79,8 +229,12 @@ const AddReceipt = ({ navigation }) => {
                     mimeType: asset.type,
                     icon: '📷',
                     timestamp: new Date().toLocaleString(),
-                });
+                };
+
+                setSelectedFile(fileData);
                 setShowUploadOptions(false);
+
+                await callOCRAPI(asset.uri);
             }
         });
     };
@@ -94,7 +248,7 @@ const AddReceipt = ({ navigation }) => {
             quality: 0.8,
         };
 
-        launchImageLibrary(options, (response) => {
+        launchImageLibrary(options, async (response) => {
             if (response.didCancel) {
                 console.log('User cancelled gallery');
             } else if (response.errorMessage) {
@@ -102,7 +256,7 @@ const AddReceipt = ({ navigation }) => {
                 Alert.alert('Error', 'Failed to open gallery');
             } else if (response.assets && response.assets[0]) {
                 const asset = response.assets[0];
-                setSelectedFile({
+                const fileData = {
                     type: 'gallery',
                     name: asset.fileName || 'Gallery Photo',
                     uri: asset.uri,
@@ -110,8 +264,12 @@ const AddReceipt = ({ navigation }) => {
                     mimeType: asset.type,
                     icon: '🖼️',
                     timestamp: new Date().toLocaleString(),
-                });
+                };
+
+                setSelectedFile(fileData);
                 setShowUploadOptions(false);
+
+                await callOCRAPI(asset.uri);
             }
         });
     };
@@ -127,7 +285,7 @@ const AddReceipt = ({ navigation }) => {
                 ],
             });
 
-            setSelectedFile({
+            const fileData = {
                 type: 'document',
                 name: result.name,
                 uri: result.uri,
@@ -135,8 +293,14 @@ const AddReceipt = ({ navigation }) => {
                 mimeType: result.type,
                 icon: getFileIcon(result.type),
                 timestamp: new Date().toLocaleString(),
-            });
+            };
+
+            setSelectedFile(fileData);
             setShowUploadOptions(false);
+
+            if (result.type?.includes('image')) {
+                await callOCRAPI(result.uri);
+            }
         } catch (err) {
             if (DocumentPicker.isCancel(err)) {
                 console.log('User cancelled document picker');
@@ -189,6 +353,7 @@ const AddReceipt = ({ navigation }) => {
     const removeSelectedFile = () => {
         setSelectedFile(null);
         setShowAddForm(false);
+        setOcrData(null);
     };
 
     return (
@@ -206,6 +371,14 @@ const AddReceipt = ({ navigation }) => {
                 {/* Inverted U Shape Bottom */}
                 <View style={styles.invertedUBottom} />
             </View>
+
+            {/* OCR Processing Indicator */}
+            {isProcessingOCR && (
+                <View style={styles.processingContainer}>
+                    <ActivityIndicator size="large" color="#7C3AED" />
+                    <Text style={styles.processingText}>Processing receipt data...</Text>
+                </View>
+            )}
 
             {/* Form Content */}
             <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
@@ -237,6 +410,9 @@ const AddReceipt = ({ navigation }) => {
                                             {selectedFile.fileSize ? formatFileSize(selectedFile.fileSize) : 'Unknown size'}
                                         </Text>
                                         <Text style={styles.selectedFileTimestamp}>Added: {selectedFile.timestamp}</Text>
+                                        {ocrData && (
+                                            <Text style={styles.ocrStatusText}>✓ Data extracted successfully</Text>
+                                        )}
                                     </View>
                                 </View>
                                 <TouchableOpacity
@@ -254,10 +430,10 @@ const AddReceipt = ({ navigation }) => {
                         <TouchableOpacity
                             style={[
                                 styles.addReceiptButton,
-                                !selectedFile && styles.addReceiptButtonDisabled
+                                (!selectedFile || isProcessingOCR) && styles.addReceiptButtonDisabled
                             ]}
                             onPress={handleAddReceipt}
-                            disabled={!selectedFile}
+                            disabled={!selectedFile || isProcessingOCR}
                         >
                             <Text style={styles.addReceiptButtonIcon}>✓</Text>
                             <Text style={styles.addReceiptButtonText}>Add Receipt</Text>
@@ -265,6 +441,8 @@ const AddReceipt = ({ navigation }) => {
                     ) : (
                         <AddForm
                             navigation={navigation}
+                            ocrData={ocrData}
+                            selectedFile={selectedFile} 
                             onSave={(data) => {
                                 setShowAddForm(false);
                             }}
@@ -666,6 +844,25 @@ const styles = StyleSheet.create({
     modalCancelText: {
         fontSize: 16,
         color: '#666',
+        fontWeight: '500',
+    },
+    processingContainer: {
+        backgroundColor: '#F3F4F6',
+        padding: 16,
+        margin: 16,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    processingText: {
+        marginTop: 8,
+        fontSize: 14,
+        color: '#7C3AED',
+        fontWeight: '500',
+    },
+    ocrStatusText: {
+        fontSize: 12,
+        color: '#10B981',
+        marginTop: 4,
         fontWeight: '500',
     },
 });

@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
-const baseURL = "http://10.0.2.2:8010"; // For Android emulator
-// const baseURL = "http://192.168.1.11:8010"; // For physical device
+// const baseURL = "http://10.0.2.2:8010"; // For Android emulator
+const baseURL = "http://192.168.1.11:8010"; // For physical device
 
 export const getBaseURL = () => baseURL;
 
@@ -216,3 +216,25 @@ export const updateUserProfile = async ({ name, email, phone }) => {
     }
 };
 
+export const createReceipt = async (formData) => {
+    try {
+        const response = await fetch(`${baseURL}/create/receipt`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'Accept': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Create receipt error:', error);
+        throw error;
+    }
+};

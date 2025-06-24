@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   settingsList: {
     paddingHorizontal: 20,
     paddingTop: 30,
-    paddingBottom: 100, // Space for footer
+    paddingBottom: 100,
   },
   settingsCard: {
     backgroundColor: 'white',
@@ -361,7 +361,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18,
     shadowRadius: 8,
-    // Optional: add a top border line
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
   },

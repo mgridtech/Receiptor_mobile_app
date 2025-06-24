@@ -53,7 +53,7 @@ const UpdateReceipt = ({
                 <TextInput
                   style={styles.input}
                   value={tempReceiptData.dateReceived}
-                  editable={false} // Make it read-only
+                  editable={false}
                   placeholder="Enter date (e.g., Dec 15, 2024)"
                 />
               </View>
@@ -104,7 +104,7 @@ const UpdateReceipt = ({
                 </TouchableOpacity>
                 {showReminderPicker && (
                   <DateTimePicker
-                    value={new Date()} // Start from current date
+                    value={new Date()}
                     mode="date"
                     display="default"
                     onChange={(event, date) => {

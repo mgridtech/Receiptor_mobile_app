@@ -1,33 +1,78 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { createReceipt } from '../Services/Services';
 
 const groupOptions = ['Household Essentials', 'Groceries', 'Electronics', 'Medical'];
 
-const AddForm = ({ navigation, onSave }) => {
+const getCurrentDate = () => {
+    const today = new Date();
+    const day = today.getDate().toString().padStart(2, '0');
+    const month = (today.getMonth() + 1).toString().padStart(2, '0');
+    const year = today.getFullYear();
+    return `${day}-${month}-${year}`;
+};
+
+const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
     const [formData, setFormData] = useState({
         groupName: '',
-        vendorName: 'Walmart',
-        dateReceived: '18-06-2024',
-        amount: '150.00',
-        wore: '15-09-2027',
+        vendorName: '',
+        dateReceived: getCurrentDate(),
+        amount: '',
+        wore: '',
         note: '',
     });
     const [showDatePicker, setShowDatePicker] = useState(false);
 
+    useEffect(() => {
+        if (ocrData) {
+            setFormData(prevData => ({
+                ...prevData,
+                vendorName: ocrData.vendorName || prevData.vendorName,
+                amount: ocrData.amount || prevData.amount,
+                dateReceived: formatDateForForm(ocrData.dateReceived) || prevData.dateReceived,
+                wore: formatDateForForm(ocrData.expiryDate) || prevData.wore,
+            }));
+        }
+    }, [ocrData]);
 
-    const handleDateChange = (event, selectedDate) => {
-        setShowDatePicker(false);
-        if (selectedDate) {
-            setFormData({
-                ...formData,
-                dateReceived: selectedDate.toISOString().split('T')[0],
-            });
+    const formatDateForForm = (dateString) => {
+        if (!dateString) return null;
+
+        try {
+            let date;
+
+            if (dateString.match(/^\d{2}-\d{2}-\d{4}$/)) {
+                return dateString;
+            }
+
+            if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const [year, month, day] = dateString.split('-');
+                return `${day}-${month}-${year}`;
+            }
+
+            if (dateString.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+                const [month, day, year] = dateString.split('/');
+                return `${day.padStart(2, '0')}-${month.padStart(2, '0')}-${year}`;
+            }
+
+            date = new Date(dateString);
+            if (!isNaN(date.getTime())) {
+                const day = date.getDate().toString().padStart(2, '0');
+                const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                const year = date.getFullYear();
+                return `${day}-${month}-${year}`;
+            }
+
+            return null;
+        } catch (error) {
+            console.error('Date formatting error:', error);
+            return null;
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (
             !formData.groupName ||
             formData.groupName === "" ||
@@ -37,12 +82,45 @@ const AddForm = ({ navigation, onSave }) => {
         ) {
             Alert.alert('Error', 'Please fill all required fields.');
             return;
-        } if (onSave) onSave(formData);
+        }
 
-        if (formData.groupName.toLowerCase() === 'medical') {
-            navigation.navigate('MedicalReceipts');
-        } else {
-            navigation.navigate('ReceiptsList');
+        try {
+            const apiFormData = new FormData();
+
+            if (selectedFile) {
+                apiFormData.append('receiptFile', {
+                    uri: selectedFile.uri,
+                    type: selectedFile.mimeType || 'image/jpeg',
+                    name: selectedFile.name || 'receipt.jpg',
+                });
+            }
+
+            apiFormData.append('vendorName', formData.vendorName);
+            apiFormData.append('note', formData.note || '');
+            apiFormData.append('purchaseDate', formData.dateReceived);
+            apiFormData.append('totalAmount', formData.amount);
+            apiFormData.append('validUntil', formData.expiryDate || formData.dateReceived);
+            apiFormData.append('userId', '1');
+            apiFormData.append('categoryId', formData.groupName.toLowerCase() === 'medical' ? '1' : '2');
+
+            if (formData.groupName.toLowerCase() === 'medical' && formData.medicines) {
+                apiFormData.append('medicines', JSON.stringify(formData.medicines));
+            }
+
+            const response = await createReceipt(apiFormData);
+
+            Alert.alert('Success', 'Receipt saved successfully!');
+
+            if (onSave) onSave(formData);
+
+            if (formData.groupName.toLowerCase() === 'medical') {
+                navigation.navigate('MedicalReceipts');
+            } else {
+                navigation.navigate('ReceiptsList');
+            }
+        } catch (error) {
+            console.error('Error saving receipt:', error);
+            Alert.alert('Error', 'Failed to save receipt. Please try again.');
         }
     };
 
@@ -59,9 +137,37 @@ const AddForm = ({ navigation, onSave }) => {
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >
-                <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 500, alignSelf: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 4, }}>
+                <View style={{
+                    backgroundColor: '#fff',
+                    borderRadius: 16,
+                    padding: 24,
+                    width: '100%',
+                    maxWidth: 500,
+                    alignSelf: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.08,
+                    shadowRadius: 8,
+                    elevation: 4,
+                }}>
 
                     <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>Add Receipt</Text>
+
+                    {/* Show OCR status if data was extracted */}
+                    {ocrData && (
+                        <View style={{
+                            backgroundColor: '#F0FDF4',
+                            borderColor: '#10B981',
+                            borderWidth: 1,
+                            borderRadius: 8,
+                            padding: 12,
+                            marginBottom: 16,
+                        }}>
+                            <Text style={{ color: '#059669', fontSize: 14, fontWeight: '500' }}>
+                                ✓ Receipt data extracted automatically. Please verify and edit if needed.
+                            </Text>
+                        </View>
+                    )}
 
                     <Text>Group Name *</Text>
                     <View style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 12 }}>
@@ -80,7 +186,14 @@ const AddForm = ({ navigation, onSave }) => {
 
                     <Text>Vendor Name *</Text>
                     <TextInput
-                        style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 12, padding: 8 }}
+                        style={{
+                            borderWidth: 1,
+                            borderColor: ocrData?.vendorName ? '#10B981' : '#ccc',
+                            borderRadius: 8,
+                            marginBottom: 12,
+                            padding: 8,
+                            backgroundColor: ocrData?.vendorName ? '#F0FDF4' : '#fff'
+                        }}
                         value={formData.vendorName}
                         onChangeText={text => setFormData({ ...formData, vendorName: text })}
                         placeholder="Enter vendor name"
@@ -88,7 +201,14 @@ const AddForm = ({ navigation, onSave }) => {
 
                     <Text>Date Received *</Text>
                     <TouchableOpacity
-                        style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 12, padding: 8 }}
+                        style={{
+                            borderWidth: 1,
+                            borderColor: ocrData?.dateReceived ? '#10B981' : '#ccc',
+                            borderRadius: 8,
+                            marginBottom: 12,
+                            padding: 8,
+                            backgroundColor: ocrData?.dateReceived ? '#F0FDF4' : '#fff'
+                        }}
                         onPress={() => setShowDatePicker('dateReceived')}
                         activeOpacity={0.7}
                     >
@@ -113,12 +233,20 @@ const AddForm = ({ navigation, onSave }) => {
 
                     <Text>Amount *</Text>
                     <TextInput
-                        style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 12, padding: 8 }}
+                        style={{
+                            borderWidth: 1,
+                            borderColor: ocrData?.amount ? '#10B981' : '#ccc',
+                            borderRadius: 8,
+                            marginBottom: 12,
+                            padding: 8,
+                            backgroundColor: ocrData?.amount ? '#F0FDF4' : '#fff'
+                        }}
                         value={formData.amount}
                         onChangeText={text => setFormData({ ...formData, amount: text })}
                         keyboardType="numeric"
                         placeholder="Enter amount"
                     />
+
                     <Text>Warranty or Expiry</Text>
                     <TouchableOpacity
                         style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 12, padding: 8 }}
