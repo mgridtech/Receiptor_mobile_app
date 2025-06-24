@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "688400916232",
+    "project_id": "receiptorllcdemo",
+    "storage_bucket": "receiptorllcdemo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:688400916232:android:df922d63e9c410e41796bd",
+        "android_client_info": {
+          "package_name": "com.receiptor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDDqQ3GXueG8S9krzUtPU_JQ9HA_F8-a8Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
