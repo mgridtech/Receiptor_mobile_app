@@ -8,20 +8,19 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Alert
+  Alert,
+  ScrollView,
 } from 'react-native';
 import ForgotPasswordScreen from './ForgotPass';
 import auth from '@react-native-firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {jwtDecode} from 'jwt-decode';
+import { baseURL } from '../Services/Services';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  // const baseURL = "http://10.0.2.2:8010"; // For Android emulator
-  const baseURL = "http://192.168.1.11:8010"; // For physical device
-
 
   const handleLogin = async () => {
   if (!email || !password) {
@@ -132,10 +131,16 @@ const LoginScreen = ({ navigation }) => {
   }
 };
 
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+ return (
+  <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    keyboardVerticalOffset={0}
+  >
+    <ScrollView
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
       <View style={styles.header} />
 
@@ -191,14 +196,15 @@ const LoginScreen = ({ navigation }) => {
           onClose={() => setShowForgotPassword(false)}
         />
       )}
-    </KeyboardAvoidingView>
-  );
+    </ScrollView>
+  </KeyboardAvoidingView>
+);
 };
 
 export default LoginScreen;
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    // flex: 1,
     backgroundColor: '#fff',
     alignItems: 'center',
     paddingTop: 100,

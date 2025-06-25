@@ -2,10 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { createReceipt } from '../Services/Services';
+import { createReceipt, fetchCategories } from '../Services/Services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const groupOptions = ['Household Essentials', 'Groceries', 'Electronics', 'Medical'];
 
 const getCurrentDate = () => {
     const today = new Date();
@@ -25,12 +23,41 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
         note: '',
     });
     const [showDatePicker, setShowDatePicker] = useState(false);
+    const [categories, setCategories] = useState([]);
+    const [loadingCategories, setLoadingCategories] = useState(true);
+
+    useEffect(() => {
+        const getCategories = async () => {
+            try {
+                const token = await AsyncStorage.getItem('userToken');
+                if (!token) {
+                    Alert.alert('Error', 'Authentication token not found');
+                    return;
+                }
+
+                const response = await fetchCategories(token);
+                if (response.success) {
+                    setCategories(response.data);
+                } else {
+                    console.error('Failed to fetch categories:', response.error);
+                    Alert.alert('Error', 'Failed to load categories');
+                }
+            } catch (error) {
+                console.error('Error fetching categories:', error);
+                Alert.alert('Error', 'Failed to load categories');
+            } finally {
+                setLoadingCategories(false);
+            }
+        };
+
+        getCategories();
+    }, []);
 
     useEffect(() => {
         if (ocrData) {
             setFormData(prevData => ({
                 ...prevData,
-                groupName: ocrData.groupName || prevData.groupName, // Auto-select group if detected
+                groupName: ocrData.groupName || prevData.groupName,
                 vendorName: ocrData.vendorName || prevData.vendorName,
                 amount: ocrData.amount || prevData.amount,
                 dateReceived: formatDateForForm(ocrData.dateReceived) || prevData.dateReceived,
@@ -78,14 +105,9 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
         const [day, month, year] = dateStr.split('-');
         return `${year}-${month}-${day}`;
     };
-    const getCategoryId = (groupName) => {
-        const categoryMap = {
-            'Household Essentials': 1,
-            'Groceries': 2,
-            'Electronics': 3,
-            'Medical': 4
-        };
-        return categoryMap[groupName] || 1;
+    const getCategoryId = (categoryName) => {
+        const category = categories.find(cat => cat.name === categoryName);
+        return category ? category.id : (categories.length > 0 ? categories[0].id : 1);
     };
 
     const handleSave = async (retryCount = 0) => {
@@ -101,7 +123,6 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
         }
 
         try {
-            // Get userId from AsyncStorage
             const firebaseUserId = await AsyncStorage.getItem('firebaseUserId');
             if (!firebaseUserId) {
                 Alert.alert('Error', 'User authentication required. Please login again.');
@@ -113,11 +134,9 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
 
             const apiFormData = new FormData();
 
-            // Optimize file handling
             if (selectedFile) {
                 console.log('Adding file to FormData:', selectedFile.name);
 
-                // Check file size (reduce to 2MB for better performance)
                 const maxFileSize = 2 * 1024 * 1024; // 2MB limit
                 if (selectedFile.size && selectedFile.size > maxFileSize) {
                     Alert.alert('Error', 'File size too large. Please select a smaller image (max 2MB).');
@@ -138,7 +157,6 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
             console.log('Formatted dates - Purchase:', purchaseDate, 'Valid Until:', validUntilDate);
             console.log('Category ID:', categoryId);
 
-            // Add all form fields (removed userId)
             apiFormData.append('vendorName', formData.vendorName.trim());
             apiFormData.append('note', formData.note?.trim() || '');
             apiFormData.append('purchaseDate', purchaseDate);
@@ -159,7 +177,6 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
 
             if (onSave) onSave(formData);
 
-            // Navigate based on category
             if (formData.groupName.toLowerCase() === 'medical') {
                 navigation.navigate('MedicalReceipts');
             } else {
@@ -168,7 +185,6 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
         } catch (error) {
             console.error('Error saving receipt:', error);
 
-            // Retry logic for database timeouts
             if (error.message.includes('Database connection timeout') && retryCount < 2) {
                 Alert.alert(
                     'Retry?',
@@ -186,7 +202,6 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
                 return;
             }
 
-            // Show user-friendly error messages
             let errorMessage = 'Failed to save receipt. Please try again.';
 
             if (error.message.includes('Database connection timeout')) {
@@ -232,7 +247,6 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
 
                     <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>Add Receipt</Text>
 
-                    {/* Show OCR status if data was extracted */}
                     {ocrData && (
                         <View style={{
                             backgroundColor: '#F0FDF4',
@@ -255,10 +269,19 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
                             onValueChange={itemValue => setFormData({ ...formData, groupName: itemValue })}
                             style={{ color: '#000' }}
                             dropdownIconColor="#000"
+                            enabled={!loadingCategories}
                         >
-                            <Picker.Item label="Select group" value="" enabled={false} />
-                            {groupOptions.map(option => (
-                                <Picker.Item key={option} label={option} value={option} />
+                            <Picker.Item
+                                label={loadingCategories ? "Loading categories..." : "Select category"}
+                                value=""
+                                enabled={false}
+                            />
+                            {categories.map(category => (
+                                <Picker.Item
+                                    key={category.id}
+                                    label={category.name}
+                                    value={category.name}
+                                />
                             ))}
                         </Picker>
                     </View>
@@ -276,6 +299,7 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
                         value={formData.vendorName}
                         onChangeText={text => setFormData({ ...formData, vendorName: text })}
                         placeholder="Enter vendor name"
+                        placeholderTextColor={'black'}
                     />
 
                     <Text>Date Received *</Text>
@@ -324,6 +348,7 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
                         onChangeText={text => setFormData({ ...formData, amount: text })}
                         keyboardType="numeric"
                         placeholder="Enter amount"
+                        placeholderTextColor={'black'}
                     />
 
                     <Text>Warranty or Expiry</Text>
@@ -358,6 +383,7 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
                         value={formData.note}
                         onChangeText={text => setFormData({ ...formData, note: text })}
                         placeholder="Add a note"
+                        placeholderTextColor={'black'}
                     />
 
                     <TouchableOpacity

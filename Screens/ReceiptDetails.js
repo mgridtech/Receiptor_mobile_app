@@ -66,21 +66,21 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
         navigation.goBack();
     };
 
-   const getReceiptImage = (vendorName) => {
-    if (!vendorName) return require('../assets/medical.png');
-    switch (vendorName) {
-        case 'Target':
-            return require('../assets/target.png');
-        case 'Costco':
-            return require('../assets/coscto.jpg');
-        case 'Best Buy':
-            return require('../assets/best_buy.jpg');
-        case 'Walmart':
-            return require('../assets/walmart.jpg');
-        default:
-            return require('../assets/medical.png');
-    }
-};
+    const getReceiptImage = (vendorName) => {
+        if (!vendorName) return require('../assets/medical.png');
+        switch (vendorName) {
+            case 'Target':
+                return require('../assets/target.png');
+            case 'Costco':
+                return require('../assets/coscto.jpg');
+            case 'Best Buy':
+                return require('../assets/best_buy.jpg');
+            case 'Walmart':
+                return require('../assets/walmart.jpg');
+            default:
+                return require('../assets/medical.png');
+        }
+    };
 
     const handleEditReceipt = () => {
         setTempReceiptData({ ...receiptData });
@@ -118,10 +118,10 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
                         <View style={styles.receiptImageBox}>
                             <TouchableOpacity onPress={() => setImageModalVisible(true)} activeOpacity={0.8}>
                                 <Image
-    source={getReceiptImage(receiptData.vendorName)}
-    style={{ width: 340, height: 220, borderRadius: 10 }}
-    resizeMode="stretch"
-/>
+                                    source={getReceiptImage(receiptData.vendorName)}
+                                    style={{ width: 340, height: 220, borderRadius: 10 }}
+                                    resizeMode="stretch"
+                                />
                                 <View style={{
                                     position: 'absolute',
                                     bottom: 0,
@@ -142,7 +142,7 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
 
                     <View style={styles.detailsContainer}>
                         <View style={styles.detailItem}>
-                            <Text style={styles.detailLabel}>Group name</Text>
+                            <Text style={styles.detailLabel}>Vendor name</Text>
                             <Text style={styles.detailValue}>{receiptData.vendorName}</Text>
                         </View>
 
@@ -152,7 +152,7 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
                         </View>
 
                         <View style={styles.detailItem}>
-                            <Text style={styles.detailLabel}>Transaction category</Text>
+                            <Text style={styles.detailLabel}>Category</Text>
                             <Text style={styles.detailValue}>{receiptData.groupName}</Text>
                         </View>
 
@@ -160,13 +160,6 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
                             <Text style={styles.detailLabel}>Amount</Text>
                             <Text style={styles.detailValue}>{receiptData.amount}</Text>
                         </View>
-
-                        {receiptData.medicine && (
-                            <View style={styles.detailItem}>
-                                <Text style={styles.detailLabel}>Medicine</Text>
-                                <Text style={styles.detailValue}>{receiptData.medicine}</Text>
-                            </View>
-                        )}
 
                         <View style={styles.autoReminderItem}>
                             <View style={styles.autoReminderTextContainer}>

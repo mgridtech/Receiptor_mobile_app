@@ -17,6 +17,7 @@ import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DocumentPicker from 'react-native-document-picker';
 import Footer from './FooterH';
 import AddForm from './AddForm';
+import { baseURL } from '../Services/Services';
 
 const AddReceipt = ({ navigation }) => {
     const [selectedFile, setSelectedFile] = useState(null);
@@ -59,8 +60,7 @@ const AddReceipt = ({ navigation }) => {
                 type: 'image/jpeg',
                 name: 'receipt.jpg',
             });
-            const API_BASE_URL = 'http://192.168.1.11:8010'; // e.g., 'http://192.168.1.100:3000'
-            const apiUrl = `${API_BASE_URL}/api/ocr`;
+            const apiUrl = `${baseURL}/api/ocr`;
 
             console.log('Making request to:', apiUrl);
 

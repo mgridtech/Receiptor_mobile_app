@@ -88,11 +88,6 @@ const HomeScreen = ({ navigation }) => {
               <Text style={styles.uploadSubtext}>This month</Text>
             </View>
           </View>
-          {/* <View style={styles.uploadProgress}>
-            <View style={styles.progressDot} />
-            <View style={styles.progressDot} />
-            <View style={[styles.progressDot, styles.activeDot]} />
-          </View> */}
         </View>
 
         {/* Quick Stats */}
