@@ -1,4 +1,4 @@
-import React,{useState,useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import Footer from './FooterH';
+import { getReceipts } from '../Services/Services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
@@ -16,20 +17,141 @@ const { width } = Dimensions.get('window');
 
 const HomeScreen = ({ navigation }) => {
   const [userName, setUserName] = useState('');
+  const [totalReceiptsCount, setTotalReceiptsCount] = useState(0);
+  const [currentMonthCount, setCurrentMonthCount] = useState(0);
+  const [medicalCount, setMedicalCount] = useState(0);
+  const [expiringSoonCount, setExpiringSoonCount] = useState(0);
+  const [expiringSoonReceipts, setExpiringSoonReceipts] = useState([]);
+  const [latestExpiringMedicalReceipt, setLatestExpiringMedicalReceipt] = useState(null);
 
-  useEffect(() => {
-  const fetchUserName = async () => {
+  const extractUserIdFromToken = (token) => {
     try {
-      const storedName = await AsyncStorage.getItem('userName');
-      console.log('Retrieved name from AsyncStorage:', storedName);
-      setUserName(storedName || 'User');
-    } catch (e) {
-      console.error('Error fetching user name:', e);
-      setUserName('User');
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        throw new Error('Invalid token format');
+      }
+
+      const payload = parts[1];
+
+      const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
+
+      const decodedPayload = atob(paddedPayload);
+
+      const parsedPayload = JSON.parse(decodedPayload);
+
+      console.log('Extracted token payload:', parsedPayload);
+
+      return parsedPayload.userId;
+    } catch (error) {
+      console.error('Error extracting userId from token:', error);
+      return null;
     }
   };
-  fetchUserName();
-}, []);
+
+  useEffect(() => {
+    const fetchReceiptCounts = async () => {
+      try {
+        const userToken = await AsyncStorage.getItem('userToken');
+
+        if (!userToken) {
+          console.error('Authentication required');
+          return;
+        }
+
+        const userId = extractUserIdFromToken(userToken);
+
+        if (!userId) {
+          console.error('Invalid authentication token');
+          return;
+        }
+
+        const response = await getReceipts(userId, userToken);
+
+        if (response.success && response.data) {
+          setTotalReceiptsCount(response.data.length);
+
+          const currentDate = new Date();
+          const currentMonth = currentDate.getMonth();
+          const currentYear = currentDate.getFullYear();
+
+          const currentMonthReceipts = response.data.filter(receipt => {
+            const receiptDate = new Date(receipt.purchaseDate);
+            return receiptDate.getMonth() === currentMonth &&
+              receiptDate.getFullYear() === currentYear;
+          });
+          setCurrentMonthCount(currentMonthReceipts.length);
+
+          const medicalReceipts = response.data.filter(receipt =>
+            receipt.category && receipt.category.toLowerCase() === 'medical'
+          );
+          setMedicalCount(medicalReceipts.length);
+
+          const receiptsWithValidUntil = response.data.filter(receipt => receipt.validUntil);
+
+          if (receiptsWithValidUntil.length > 0) {
+            const soonestExpiringReceipt = receiptsWithValidUntil.reduce((earliest, current) => {
+              const earliestDate = new Date(earliest.validUntil);
+              const currentDate = new Date(current.validUntil);
+              return currentDate < earliestDate ? current : earliest;
+            });
+
+            const soonestExpiryDate = new Date(soonestExpiringReceipt.validUntil);
+            if (soonestExpiryDate >= currentDate) {
+              setExpiringSoonCount(1);
+              setExpiringSoonReceipts([soonestExpiringReceipt]);
+            } else {
+              setExpiringSoonCount(0);
+              setExpiringSoonReceipts([]);
+            }
+          } else {
+            setExpiringSoonCount(0);
+            setExpiringSoonReceipts([]);
+          }
+        }
+        const medicalReceiptsWithExpiry = response.data.filter(receipt =>
+          receipt.category &&
+          receipt.category.toLowerCase() === 'medical' &&
+          receipt.validUntil
+        );
+
+        if (medicalReceiptsWithExpiry.length > 0) {
+          const latestExpiringMedical = medicalReceiptsWithExpiry.reduce((latest, current) => {
+            const latestDate = new Date(latest.validUntil);
+            const currentDate = new Date(current.validUntil);
+            return currentDate < latestDate ? current : latest;
+          });
+
+          const expiryDate = new Date(latestExpiringMedical.validUntil);
+          const currentDate = new Date();
+          if (expiryDate >= currentDate) {
+            setLatestExpiringMedicalReceipt(latestExpiringMedical);
+          } else {
+            setLatestExpiringMedicalReceipt(null);
+          }
+        } else {
+          setLatestExpiringMedicalReceipt(null);
+        }
+      } catch (err) {
+        console.error('Error fetching receipt counts:', err);
+      }
+    };
+
+    fetchReceiptCounts();
+  }, []);
+
+  useEffect(() => {
+    const fetchUserName = async () => {
+      try {
+        const storedName = await AsyncStorage.getItem('userName');
+        console.log('Retrieved name from AsyncStorage:', storedName);
+        setUserName(storedName || 'User');
+      } catch (e) {
+        console.error('Error fetching user name:', e);
+        setUserName('User');
+      }
+    };
+    fetchUserName();
+  }, []);
 
   const handleAllReceipts = () => {
     navigation.navigate('ReceiptsList');
@@ -83,7 +205,7 @@ const HomeScreen = ({ navigation }) => {
               <Text style={styles.uploadIcon}>📄</Text>
             </View>
             <View style={styles.uploadTextContainer}>
-              <Text style={styles.uploadNumber}>8</Text>
+              <Text style={styles.uploadNumber}>{currentMonthCount}</Text>
               <Text style={styles.uploadText}>Receipts Uploaded</Text>
               <Text style={styles.uploadSubtext}>This month</Text>
             </View>
@@ -93,45 +215,89 @@ const HomeScreen = ({ navigation }) => {
         {/* Quick Stats */}
         <View style={styles.statsContainer}>
           <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('ReceiptsList')} activeOpacity={0.7}>
-            <Text style={styles.statNumber}>24</Text>
+            <Text style={styles.statNumber}>{totalReceiptsCount}</Text>
             <Text style={styles.statLabel}>Total Receipts</Text>
           </TouchableOpacity>
           <View style={styles.statDivider} />
           <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('MedicalReceipts')} activeOpacity={0.7}>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>8</Text>
+              <Text style={styles.statNumber}>{medicalCount}</Text>
               <Text style={styles.statLabel}>Medical</Text>
             </View>
           </TouchableOpacity>
           <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: 'red' }]}>3</Text>
+          <TouchableOpacity
+            style={styles.statItem}
+            onPress={async () => {
+              if (expiringSoonReceipts.length > 0) {
+                const userToken = await AsyncStorage.getItem('userToken');
+                const userId = extractUserIdFromToken(userToken);
+
+                navigation.navigate('ReceiptDetails', {
+                  receipt: {
+                    id: expiringSoonReceipts[0].id,
+                    vendorName: expiringSoonReceipts[0].vendor,
+                    dateReceived: expiringSoonReceipts[0].purchaseDate,
+                    groupName: expiringSoonReceipts[0].category,
+                    amount: `₹${expiringSoonReceipts[0].amount}`,
+                    validupto: expiringSoonReceipts[0].validUntil
+                  },
+                  userId: userId
+                });
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.statNumber, { color: 'red' }]}>{expiringSoonCount}</Text>
             <Text style={[styles.statLabel, { color: 'red' }]}>Expiring Soon</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Medicine Expiry Alert Card */}
-        <View style={styles.alertCard}>
-          <View style={styles.alertHeader}>
-            <View style={styles.alertIconContainer}>
-              <Text style={styles.alertIcon}>⚠️</Text>
+        {latestExpiringMedicalReceipt && (
+          <View style={styles.alertCard}>
+            <View style={styles.alertHeader}>
+              <View style={styles.alertIconContainer}>
+                <Text style={styles.alertIcon}>⚠️</Text>
+              </View>
+              <Text style={styles.alertTitle}>Medicine Expiry Alert!</Text>
             </View>
-            <Text style={styles.alertTitle}>Medicine Expiry Alert!</Text>
+            <View style={styles.alertContent}>
+              <Text style={styles.medicineName}>{latestExpiringMedicalReceipt.vendor}</Text>
+              <Text style={styles.expiryText}>
+                This medicine is expiring soon - Check expiry date
+              </Text>
+              <Text style={styles.expiryDate}>
+                Expires: {new Date(latestExpiringMedicalReceipt.validUntil).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.alertButton}
+              onPress={async () => {
+                const userToken = await AsyncStorage.getItem('userToken');
+                const userId = extractUserIdFromToken(userToken);
+
+                navigation.navigate('ReceiptDetails', {
+                  receipt: {
+                    id: latestExpiringMedicalReceipt.id,
+                    vendorName: latestExpiringMedicalReceipt.vendor,
+                    dateReceived: latestExpiringMedicalReceipt.purchaseDate,
+                    groupName: latestExpiringMedicalReceipt.category,
+                    amount: `₹${latestExpiringMedicalReceipt.amount}`,
+                    validupto: latestExpiringMedicalReceipt.validUntil
+                  },
+                  userId: userId
+                });
+              }}
+            >
+              <Text style={styles.alertButtonText}>View Details</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.alertContent}>
-            <Text style={styles.medicineName}>Paracetamol 500mg</Text>
-            <Text style={styles.expiryText}>
-              This medicine is expiring soon - Check expiry date
-            </Text>
-            <Text style={styles.expiryDate}>Expires: June 25, 2025</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.alertButton}
-            onPress={() => navigation.navigate('ReceiptDetails', { receipt: exampleReceipt })}
-          >
-            <Text style={styles.alertButtonText}>View Details</Text>
-          </TouchableOpacity>
-        </View>
+        )}
 
         {/* Receipt Categories */}
         <Text style={styles.sectionTitle}>Receipt Categories</Text>

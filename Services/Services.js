@@ -451,3 +451,68 @@ export const deleteReceipt = async (userId, receiptId) => {
         return { success: false, error: error.message };
     }
 };
+
+export const getReceiptDetails = async (userId, receiptId, token) => {
+    try {
+        console.log('=== RECEIPT DETAILS API DEBUG ===');
+        console.log('UserId:', userId);
+        console.log('ReceiptId:', receiptId);
+        console.log('Token (first 50 chars):', token ? token.substring(0, 50) + '...' : 'NO TOKEN');
+        console.log('Full URL:', `${baseURL}/receipt/details/${userId}/${receiptId}`);
+
+        const headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        };
+
+        console.log('Request headers:', JSON.stringify(headers, null, 2));
+
+        const response = await fetch(`${baseURL}/receipt/details/${userId}/${receiptId}`, {
+            method: 'GET',
+            headers: headers,
+        });
+
+        console.log('Response status:', response.status);
+        console.log('Response headers:', JSON.stringify(response.headers, null, 2));
+
+        const responseText = await response.text();
+        console.log('Raw response body:', responseText);
+
+        if (!response.ok) {
+            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+
+            try {
+                const errorData = JSON.parse(responseText);
+                console.log('Parsed error data:', errorData);
+                if (errorData.message) {
+                    errorMessage = errorData.message;
+                } else if (errorData.error) {
+                    errorMessage = errorData.error;
+                }
+            } catch (parseError) {
+                console.log('Could not parse error response as JSON');
+                errorMessage = `${errorMessage} - Raw response: ${responseText}`;
+            }
+
+            throw new Error(errorMessage);
+        }
+
+        let result;
+        try {
+            result = JSON.parse(responseText);
+            console.log('Parsed success response:', JSON.stringify(result, null, 2));
+        } catch (parseError) {
+            console.error('Could not parse success response as JSON:', parseError);
+            throw new Error('Invalid JSON response from server');
+        }
+
+        return { success: true, data: result.data || result };
+    } catch (error) {
+        console.error('=== RECEIPT DETAILS API ERROR ===');
+        console.error('Error type:', error.constructor.name);
+        console.error('Error message:', error.message);
+        console.error('Full error:', error);
+        return { success: false, error: error.message };
+    }
+};

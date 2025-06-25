@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -13,6 +13,8 @@ import {
 import Footer from './FooterH';
 import UpdateReceipt from './UpdateReceipt';
 import ViewFullImage from './ViewFullImage';
+import { getReceiptDetails } from '../Services/Services';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const IOSToggle = ({ value, onValueChange, activeColor = '#9A6BD4', inactiveColor = '#E5E5EA' }) => {
     const [animatedValue] = useState(new Animated.Value(value ? 1 : 0));
@@ -40,6 +42,8 @@ const IOSToggle = ({ value, onValueChange, activeColor = '#9A6BD4', inactiveColo
         outputRange: [inactiveColor, activeColor],
     });
 
+
+
     return (
         <TouchableOpacity onPress={handleToggle} activeOpacity={0.8}>
             <Animated.View style={[styles.toggleContainer, { backgroundColor }]}>
@@ -62,24 +66,92 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
     const [tempReceiptData, setTempReceiptData] = useState({ ...receipt });
     const [imageModalVisible, setImageModalVisible] = useState(false);
 
+    const extractUserIdFromToken = (token) => {
+        try {
+            const parts = token.split('.');
+            if (parts.length !== 3) {
+                throw new Error('Invalid token format');
+            }
+
+            const payload = parts[1];
+
+            const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
+
+            const decodedPayload = atob(paddedPayload);
+
+            const parsedPayload = JSON.parse(decodedPayload);
+
+            console.log('Extracted token payload:', parsedPayload);
+
+            return parsedPayload.userId;
+        } catch (error) {
+            console.error('Error extracting userId from token:', error);
+            return null;
+        }
+    };
+
+    useEffect(() => {
+        const fetchReceiptDetails = async () => {
+            try {
+                const userToken = await AsyncStorage.getItem('userToken');
+
+                if (!userToken) {
+                    Alert.alert('Error', 'Authentication required. Please login again.');
+                    return;
+                }
+
+                const userId = extractUserIdFromToken(userToken);
+
+                if (!userId) {
+                    Alert.alert('Error', 'Invalid authentication token. Please login again.');
+                    return;
+                }
+
+                console.log('Fetching details for receipt ID:', receipt.id);
+
+                const response = await getReceiptDetails(userId, receipt.id, userToken);
+
+                if (response.success) {
+                    // Transform the API response to match your existing receiptData structure
+                    const transformedData = {
+                        ...receiptData,
+                        id: response.data.id,
+                        vendorName: response.data.vendor,
+                        dateReceived: response.data.purchaseDate,
+                        groupName: response.data.category,
+                        amount: `₹${response.data.amount}`,
+                        expiryDate: response.data.validUntil || 'N/A',
+                        validupto: response.data.validUntil || 'N/A',
+                        note: response.data.note,
+                        receiptFileUrl: response.data.receiptFileUrl,
+                        notify: response.data.notify
+                    };
+
+                    setReceiptData(transformedData);
+                    setTempReceiptData(transformedData);
+                    setIsAutoReminderEnabled(response.data.notify || false);
+                } else {
+                    Alert.alert('Error', response.error || 'Failed to fetch receipt details');
+                }
+            } catch (error) {
+                console.error('Error fetching receipt details:', error);
+                Alert.alert('Error', 'Failed to load receipt details');
+            }
+        };
+
+        fetchReceiptDetails();
+    }, [receipt.id]);
+
+
     const handleBackPress = () => {
         navigation.goBack();
     };
 
-    const getReceiptImage = (vendorName) => {
-        if (!vendorName) return require('../assets/medical.png');
-        switch (vendorName) {
-            case 'Target':
-                return require('../assets/target.png');
-            case 'Costco':
-                return require('../assets/coscto.jpg');
-            case 'Best Buy':
-                return require('../assets/best_buy.jpg');
-            case 'Walmart':
-                return require('../assets/walmart.jpg');
-            default:
-                return require('../assets/medical.png');
+    const getReceiptImage = (receiptFileUrl) => {
+        if (receiptFileUrl) {
+            return { uri: receiptFileUrl };
         }
+        return null;
     };
 
     const handleEditReceipt = () => {
@@ -117,11 +189,24 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
                     <View style={styles.receiptImageContainer}>
                         <View style={styles.receiptImageBox}>
                             <TouchableOpacity onPress={() => setImageModalVisible(true)} activeOpacity={0.8}>
-                                <Image
-                                    source={getReceiptImage(receiptData.vendorName)}
-                                    style={{ width: 340, height: 220, borderRadius: 10 }}
-                                    resizeMode="stretch"
-                                />
+                                {receiptData.receiptFileUrl ? (
+                                    <Image
+                                        source={getReceiptImage(receiptData.receiptFileUrl)}
+                                        style={{ width: 340, height: 220, borderRadius: 10 }}
+                                        resizeMode="cover"
+                                    />
+                                ) : (
+                                    <View style={{
+                                        width: 340,
+                                        height: 220,
+                                        borderRadius: 10,
+                                        backgroundColor: '#f0f0f0',
+                                        justifyContent: 'center',
+                                        alignItems: 'center'
+                                    }}>
+                                        <Text style={{ color: '#999', fontSize: 16 }}>No image available</Text>
+                                    </View>
+                                )}
                                 <View style={{
                                     position: 'absolute',
                                     bottom: 0,
@@ -239,7 +324,7 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
             <ViewFullImage
                 visible={imageModalVisible}
                 onClose={() => setImageModalVisible(false)}
-                imageSource={getReceiptImage(receiptData.vendorName)}
+                imageSource={getReceiptImage(receiptData.receiptFileUrl)}
             />
             <Footer />
         </SafeAreaView>
