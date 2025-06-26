@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   settingsList: {
     paddingHorizontal: 20,
     paddingTop: 30,
-    paddingBottom: 100,
+    paddingBottom: 107,
   },
   settingsCard: {
     backgroundColor: 'white',
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f9fa',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 10,
     marginTop: 6,
     elevation: 4,
     shadowColor: '#4B5563',

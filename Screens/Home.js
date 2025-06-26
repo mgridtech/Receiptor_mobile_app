@@ -67,7 +67,14 @@ const HomeScreen = ({ navigation }) => {
 
         const response = await getReceipts(userId, userToken);
 
-        if (response.success && response.data) {
+        setTotalReceiptsCount(0);
+        setCurrentMonthCount(0);
+        setMedicalCount(0);
+        setExpiringSoonCount(0);
+        setExpiringSoonReceipts([]);
+        setLatestExpiringMedicalReceipt(null);
+
+        if (response.success && response.data && Array.isArray(response.data) && response.data.length > 0) {
           setTotalReceiptsCount(response.data.length);
 
           const currentDate = new Date();
@@ -99,40 +106,37 @@ const HomeScreen = ({ navigation }) => {
             if (soonestExpiryDate >= currentDate) {
               setExpiringSoonCount(1);
               setExpiringSoonReceipts([soonestExpiringReceipt]);
-            } else {
-              setExpiringSoonCount(0);
-              setExpiringSoonReceipts([]);
             }
-          } else {
-            setExpiringSoonCount(0);
-            setExpiringSoonReceipts([]);
           }
-        }
-        const medicalReceiptsWithExpiry = response.data.filter(receipt =>
-          receipt.category &&
-          receipt.category.toLowerCase() === 'medical' &&
-          receipt.validUntil
-        );
 
-        if (medicalReceiptsWithExpiry.length > 0) {
-          const latestExpiringMedical = medicalReceiptsWithExpiry.reduce((latest, current) => {
-            const latestDate = new Date(latest.validUntil);
-            const currentDate = new Date(current.validUntil);
-            return currentDate < latestDate ? current : latest;
-          });
+          const medicalReceiptsWithExpiry = response.data.filter(receipt =>
+            receipt.category &&
+            receipt.category.toLowerCase() === 'medical' &&
+            receipt.validUntil
+          );
 
-          const expiryDate = new Date(latestExpiringMedical.validUntil);
-          const currentDate = new Date();
-          if (expiryDate >= currentDate) {
-            setLatestExpiringMedicalReceipt(latestExpiringMedical);
-          } else {
-            setLatestExpiringMedicalReceipt(null);
+          if (medicalReceiptsWithExpiry.length > 0) {
+            const latestExpiringMedical = medicalReceiptsWithExpiry.reduce((latest, current) => {
+              const latestDate = new Date(latest.validUntil);
+              const currentDate = new Date(current.validUntil);
+              return currentDate < latestDate ? current : latest;
+            });
+
+            const expiryDate = new Date(latestExpiringMedical.validUntil);
+            const currentDate = new Date();
+            if (expiryDate >= currentDate) {
+              setLatestExpiringMedicalReceipt(latestExpiringMedical);
+            }
           }
-        } else {
-          setLatestExpiringMedicalReceipt(null);
         }
       } catch (err) {
         console.error('Error fetching receipt counts:', err);
+        setTotalReceiptsCount(0);
+        setCurrentMonthCount(0);
+        setMedicalCount(0);
+        setExpiringSoonCount(0);
+        setExpiringSoonReceipts([]);
+        setLatestExpiringMedicalReceipt(null);
       }
     };
 
@@ -222,7 +226,7 @@ const HomeScreen = ({ navigation }) => {
           <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('MedicalReceipts')} activeOpacity={0.7}>
             <View style={styles.statItem}>
               <Text style={styles.statNumber}>{medicalCount}</Text>
-              <Text style={styles.statLabel}>Medical</Text>
+              <Text style={styles.statLabel}>Medical Receipts</Text>
             </View>
           </TouchableOpacity>
           <View style={styles.statDivider} />

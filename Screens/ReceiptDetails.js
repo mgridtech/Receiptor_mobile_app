@@ -13,7 +13,7 @@ import {
 import Footer from './FooterH';
 import UpdateReceipt from './UpdateReceipt';
 import ViewFullImage from './ViewFullImage';
-import { getReceiptDetails } from '../Services/Services';
+import { getReceiptDetails, updateReminder } from '../Services/Services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const IOSToggle = ({ value, onValueChange, activeColor = '#9A6BD4', inactiveColor = '#E5E5EA' }) => {
@@ -253,16 +253,47 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
                             </View>
                             <IOSToggle
                                 value={isAutoReminderEnabled}
-                                onValueChange={(nextValue) => {
+                                onValueChange={async (nextValue) => {
+                                    const userToken = await AsyncStorage.getItem('userToken');
+                                    const userId = extractUserIdFromToken(userToken);
+
+                                    if (!userId) {
+                                        Alert.alert('Error', 'Authentication error. Please login again.');
+                                        return;
+                                    }
+
                                     if (nextValue) {
-                                        setIsAutoReminderEnabled(true);
+                                        try {
+                                            const response = await updateReminder(userId, receiptData.id);
+                                            if (response.success) {
+                                                setIsAutoReminderEnabled(true);
+                                            } else {
+                                                Alert.alert('Error', response.error || 'Failed to enable reminder');
+                                            }
+                                        } catch (error) {
+                                            Alert.alert('Error', 'Failed to enable reminder');
+                                        }
                                     } else {
                                         Alert.alert(
                                             'Confirmation',
                                             'Do you want to stop receiving auto reminders?',
                                             [
                                                 { text: 'Cancel', style: 'cancel' },
-                                                { text: 'Yes', onPress: () => setIsAutoReminderEnabled(false) },
+                                                {
+                                                    text: 'Yes',
+                                                    onPress: async () => {
+                                                        try {
+                                                            const response = await updateReminder(userId, receiptData.id);
+                                                            if (response.success) {
+                                                                setIsAutoReminderEnabled(false);
+                                                            } else {
+                                                                Alert.alert('Error', response.error || 'Failed to disable reminder');
+                                                            }
+                                                        } catch (error) {
+                                                            Alert.alert('Error', 'Failed to disable reminder');
+                                                        }
+                                                    }
+                                                },
                                             ]
                                         );
                                     }

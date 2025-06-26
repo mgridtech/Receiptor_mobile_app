@@ -11,7 +11,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Footer from './FooterH';
 import EditProfile from './EditProfile';
-import { getUserProfile,testTokenFormat,testServerConnection } from '../Services/Services';
+import { getUserProfile, testTokenFormat, testServerConnection } from '../Services/Services';
 const ProfileScreen = ({ navigation }) => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [profileData, setProfileData] = useState({
@@ -28,42 +28,51 @@ const ProfileScreen = ({ navigation }) => {
   }, []);
 
   const fetchUserProfile = async () => {
-  try {
-    setLoading(true);
-    setError(null);
-    
-    const token = await AsyncStorage.getItem('userToken');
-    
-    if (!token) {
-      Alert.alert('Error', 'No authentication token found. Please login again.');
-      navigation.replace('Login');
-      return;
-    }
+    try {
+      setLoading(true);
+      setError(null);
 
-    await testTokenFormat(token);
-    await testServerConnection();
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-    const result = await getUserProfile(token);
-    
-    if (result.success) {
-      setProfileData({
-        name: result.data.name || '',
-        email: result.data.email || '',
-        phone: result.data.phone || '',
-        tier: result.data.tier || '',
-      });
-    } else {
-      setError(result.error);
-      Alert.alert('Error', `Failed to load profile: ${result.error}`);
+      const token = await AsyncStorage.getItem('userToken');
+
+      if (!token) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const retryToken = await AsyncStorage.getItem('userToken');
+
+        if (!retryToken) {
+          Alert.alert('Error', 'No authentication token found. Please login again.');
+          navigation.replace('Login');
+          return;
+        } else {
+          token = retryToken;
+        }
+      }
+
+      await testTokenFormat(token);
+      await testServerConnection();
+
+      const result = await getUserProfile(token);
+
+      if (result.success) {
+        setProfileData({
+          name: result.data.name || '',
+          email: result.data.email || '',
+          phone: result.data.phone || '',
+          tier: result.data.tier || '',
+        });
+      } else {
+        setError(result.error);
+        Alert.alert('Error', `Failed to load profile: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error in fetchUserProfile:', error);
+      setError(error.message);
+      Alert.alert('Error', 'Failed to load profile. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error in fetchUserProfile:', error);
-    setError(error.message);
-    Alert.alert('Error', 'Failed to load profile. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -108,8 +117,8 @@ const ProfileScreen = ({ navigation }) => {
             </Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Profile</Text>
-          <TouchableOpacity 
-            style={styles.refreshButton} 
+          <TouchableOpacity
+            style={styles.refreshButton}
             onPress={fetchUserProfile}
             activeOpacity={0.7}
           >
@@ -177,7 +186,7 @@ const ProfileScreen = ({ navigation }) => {
           {/* Edit Profile Button */}
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => setEditModalVisible(true)} 
+            onPress={() => setEditModalVisible(true)}
             activeOpacity={0.7}
           >
             <View style={styles.actionButtonContent}>
@@ -204,7 +213,7 @@ const ProfileScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
-      
+
       <EditProfile
         visible={editModalVisible}
         profileData={profileData}

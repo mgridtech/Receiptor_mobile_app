@@ -1,36 +1,76 @@
-import React from 'react';
-import { Modal, View, Image, TouchableOpacity, Text, StyleSheet, Alert, Platform, PermissionsAndroid } from 'react-native';
-import CameraRoll from '@react-native-camera-roll/camera-roll';
+import React, { useState } from 'react';
+import { Modal, View, Image, TouchableOpacity, Text, StyleSheet, Alert, Platform, PermissionsAndroid, Linking } from 'react-native';
+import RNFS from 'react-native-fs';
 
 const ViewFullImage = ({ visible, onClose, imageSource }) => {
+    const [isDownloading, setIsDownloading] = useState(false);
+
     const handleDownloadImage = async () => {
+        setIsDownloading(true);
         if (Platform.OS === 'android') {
             try {
-                const granted = await PermissionsAndroid.request(
-                    PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-                    {
-                        title: 'Storage Permission Required',
-                        message: 'Receiptor needs access to your storage to save images.',
-                        buttonNeutral: 'Ask Me Later',
-                        buttonNegative: 'Cancel',
-                        buttonPositive: 'OK',
-                    }
-                );
-                if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-                    Alert.alert('Permission Denied', 'Storage permission is required to save images.');
-                    return;
+                let imageUri;
+                if (typeof imageSource === 'string') {
+                    imageUri = imageSource;
+                } else if (imageSource.uri) {
+                    imageUri = imageSource.uri;
+                } else {
+                    const resolvedImage = Image.resolveAssetSource(imageSource);
+                    imageUri = resolvedImage.uri;
                 }
-            } catch (err) {
-                Alert.alert('Permission error', err.message);
-                return;
+
+                const date = new Date();
+                const fileName = `Receiptor_${date.getTime()}.jpg`;
+
+                const downloadPath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+
+                const downloadResult = await RNFS.downloadFile({
+                    fromUrl: imageUri,
+                    toFile: downloadPath,
+                }).promise;
+
+                if (downloadResult.statusCode === 200) {
+                    await RNFS.scanFile(downloadPath);
+                    Alert.alert('Success', `Image saved to Downloads folder: ${fileName}`);
+                } else {
+                    Alert.alert('Error', 'Failed to download image');
+                }
+            } catch (error) {
+                console.error('Download error:', error);
+                Alert.alert('Error', 'Failed to save image: ' + error.message);
+            } finally {
+                setIsDownloading(false);
             }
         }
+
         try {
-            const imageUri = Image.resolveAssetSource(imageSource).uri;
-            await CameraRoll.save(imageUri, { type: 'photo' });
-            Alert.alert('Success', 'Image saved to gallery!');
+            let imageUri;
+            if (typeof imageSource === 'string') {
+                imageUri = imageSource;
+            } else if (imageSource.uri) {
+                imageUri = imageSource.uri;
+            } else {
+                const resolvedImage = Image.resolveAssetSource(imageSource);
+                imageUri = resolvedImage.uri;
+            }
+
+            const date = new Date();
+            const fileName = `image_${date.getTime()}.jpg`;
+            const downloadPath = `${RNFS.PicturesDirectoryPath}/${fileName}`;
+
+            const downloadResult = await RNFS.downloadFile({
+                fromUrl: imageUri,
+                toFile: downloadPath,
+            }).promise;
+
+            if (downloadResult.statusCode === 200) {
+                Alert.alert('Success', 'Image saved to gallery!');
+            } else {
+                Alert.alert('Error', 'Failed to download image');
+            }
         } catch (error) {
-            Alert.alert('Error', error.message);
+            console.error('Download error:', error);
+            Alert.alert('Error', 'Failed to save image: ' + error.message);
         }
     };
 
@@ -54,10 +94,13 @@ const ViewFullImage = ({ visible, onClose, imageSource }) => {
                     <Text style={{ color: '#fff', fontSize: 18 }}>Close</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                    style={styles.downloadButton}
+                    style={[styles.downloadButton, isDownloading && { opacity: 0.6 }]}
                     onPress={handleDownloadImage}
+                    disabled={isDownloading}
                 >
-                    <Text style={{ color: '#fff', fontSize: 18 }}>Download</Text>
+                    <Text style={{ color: '#fff', fontSize: 18 }}>
+                        {isDownloading ? 'Downloading...' : 'Download'}
+                    </Text>
                 </TouchableOpacity>
             </View>
         </Modal>

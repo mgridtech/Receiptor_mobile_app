@@ -516,3 +516,46 @@ export const getReceiptDetails = async (userId, receiptId, token) => {
         return { success: false, error: error.message };
     }
 };
+
+export const updateReminder = async (userId, receiptId) => {
+    try {
+        const token = await AsyncStorage.getItem('userToken');
+
+        if (!token) {
+            throw new Error('Authentication token not found. Please login again.');
+        }
+
+        console.log('Attempting to update reminder with URL:', `${baseURL}/receipt/notify/${userId}/${receiptId}`);
+
+        const response = await fetch(`${baseURL}/receipt/notify/${userId}/${receiptId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+
+        console.log('Response status:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorMessage = `Failed to update reminder: ${response.status} ${errorText}`;
+
+            try {
+                const errorData = JSON.parse(errorText);
+                if (errorData.message) {
+                    errorMessage = errorData.message;
+                }
+            } catch (e) {
+            }
+            throw new Error(errorMessage);
+        }
+
+        const result = await response.json();
+        return { success: true, data: result };
+    } catch (error) {
+        console.error('Error updating reminder:', error);
+        return { success: false, error: error.message };
+    }
+};
