@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import auth from '@react-native-firebase/auth';
 
 // export const baseURL = "http://10.0.2.2:8010"; // For Android emulator
-export const baseURL = "http://192.168.1.8:8010"; // For physical device
+export const baseURL = "http://192.168.1.12:8010"; // For physical device
 
 export const getBaseURL = () => baseURL;
 

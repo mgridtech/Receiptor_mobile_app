@@ -93,18 +93,6 @@ const LoginScreen = ({ navigation }) => {
       console.log('Stored Name:', 'API call failed');
       console.log('Stored Firebase UID:', firebaseUserId);
       console.log('=======================================');
-
-      Alert.alert(
-        'Login Successful',
-        `Welcome back, ${user.email}!`,
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.replace('Home'),
-          },
-        ],
-        { cancelable: false }
-      );
     }
   } catch (e) {
     console.error('Login Error:', e);

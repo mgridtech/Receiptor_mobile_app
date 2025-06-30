@@ -20,7 +20,15 @@ import AddForm from './AddForm';
 import { baseURL } from '../Services/Services';
 
 const AddReceipt = ({ navigation }) => {
-    const [selectedFile, setSelectedFile] = useState(null);
+    const [selectedFiles, setSelectedFiles] = useState([]);
+    const [combinedOcrData, setCombinedOcrData] = useState({
+        vendorName: '',
+        amount: '',
+        dateReceived: '',
+        expiryDate: '',
+        groupName: '',
+    });
+
     const [showUploadOptions, setShowUploadOptions] = useState(false);
     const [showAddForm, setShowAddForm] = useState(false);
     const [isProcessingOCR, setIsProcessingOCR] = useState(false);
@@ -87,6 +95,10 @@ const AddReceipt = ({ navigation }) => {
 
             const processedData = processOCRData(data);
             setOcrData(processedData);
+
+            if (processedData) {
+                combineOcrData(processedData);
+            }
 
             return processedData;
         } catch (error) {
@@ -307,7 +319,7 @@ const AddReceipt = ({ navigation }) => {
                 const asset = response.assets[0];
                 const fileData = {
                     type: 'camera',
-                    name: asset.fileName || 'Camera Photo',
+                    name: asset.fileName || `Camera Photo ${selectedFiles.length + 1}`,
                     uri: asset.uri,
                     fileSize: asset.fileSize,
                     mimeType: asset.type,
@@ -315,10 +327,15 @@ const AddReceipt = ({ navigation }) => {
                     timestamp: new Date().toLocaleString(),
                 };
 
-                setSelectedFile(fileData);
+                setSelectedFiles(prev => [...prev, fileData]);
                 setShowUploadOptions(false);
 
                 await callOCRAPI(asset.uri);
+
+                // Check for missing fields after OCR processing
+                setTimeout(() => {
+                    checkMissingFieldsAndPrompt();
+                }, 1000);
             }
         });
     };
@@ -342,7 +359,7 @@ const AddReceipt = ({ navigation }) => {
                 const asset = response.assets[0];
                 const fileData = {
                     type: 'gallery',
-                    name: asset.fileName || 'Gallery Photo',
+                    name: asset.fileName || `Gallery Photo ${selectedFiles.length + 1}`,
                     uri: asset.uri,
                     fileSize: asset.fileSize,
                     mimeType: asset.type,
@@ -350,10 +367,15 @@ const AddReceipt = ({ navigation }) => {
                     timestamp: new Date().toLocaleString(),
                 };
 
-                setSelectedFile(fileData);
+                setSelectedFiles(prev => [...prev, fileData]);
                 setShowUploadOptions(false);
 
                 await callOCRAPI(asset.uri);
+
+                // Check for missing fields after OCR processing
+                setTimeout(() => {
+                    checkMissingFieldsAndPrompt();
+                }, 1000);
             }
         });
     };
@@ -379,11 +401,16 @@ const AddReceipt = ({ navigation }) => {
                 timestamp: new Date().toLocaleString(),
             };
 
-            setSelectedFile(fileData);
+            setSelectedFiles(prev => [...prev, fileData]);
             setShowUploadOptions(false);
 
             if (result.type?.includes('image')) {
                 await callOCRAPI(result.uri);
+
+                // Check for missing fields after OCR processing
+                setTimeout(() => {
+                    checkMissingFieldsAndPrompt();
+                }, 1000);
             }
         } catch (err) {
             if (DocumentPicker.isCancel(err)) {
@@ -394,6 +421,7 @@ const AddReceipt = ({ navigation }) => {
             }
         }
     };
+
 
     const getFileIcon = (mimeType) => {
         if (mimeType?.includes('image')) return '🖼️';
@@ -427,17 +455,70 @@ const AddReceipt = ({ navigation }) => {
     };
 
     const handleAddReceipt = () => {
-        if (!selectedFile) {
-            Alert.alert('Missing File', 'Please select an image or file to upload');
+        if (selectedFiles.length === 0) {
+            Alert.alert('Missing File', 'Please select at least one image or file to upload');
             return;
         }
         setShowAddForm(true);
     };
 
-    const removeSelectedFile = () => {
-        setSelectedFile(null);
+    const removeSelectedFile = (indexToRemove = null) => {
+        if (indexToRemove !== null) {
+            // Remove specific file
+            setSelectedFiles(prev => prev.filter((_, index) => index !== indexToRemove));
+        } else {
+            // Remove all files
+            setSelectedFiles([]);
+            setCombinedOcrData({
+                vendorName: '',
+                amount: '',
+                dateReceived: '',
+                expiryDate: '',
+                groupName: '',
+            });
+        }
         setShowAddForm(false);
-        setOcrData(null);
+    };
+
+
+    const checkMissingFieldsAndPrompt = () => {
+        const missingFields = [];
+
+        if (!combinedOcrData.vendorName) missingFields.push('Vendor Name');
+        if (!combinedOcrData.amount) missingFields.push('Amount');
+        if (!combinedOcrData.dateReceived) missingFields.push('Date Received');
+        if (!combinedOcrData.expiryDate) missingFields.push('Expiry Date');
+        if (!combinedOcrData.groupName) missingFields.push('Category');
+
+        if (missingFields.length > 0) {
+            Alert.alert(
+                'Missing Information',
+                `The following fields are missing: ${missingFields.join(', ')}. Would you like to upload another image to fill the remaining fields?`,
+                [
+                    {
+                        text: 'No, I\'ll fill manually',
+                        onPress: () => setShowAddForm(true),
+                        style: 'cancel'
+                    },
+                    {
+                        text: 'Yes, upload another image',
+                        onPress: () => setShowUploadOptions(true)
+                    }
+                ]
+            );
+        } else {
+            setShowAddForm(true);
+        }
+    };
+
+    const combineOcrData = (newOcrData) => {
+        setCombinedOcrData(prevData => ({
+            vendorName: prevData.vendorName || newOcrData.vendorName || '',
+            amount: prevData.amount || newOcrData.amount || '',
+            dateReceived: prevData.dateReceived || newOcrData.dateReceived || '',
+            expiryDate: prevData.expiryDate || newOcrData.expiryDate || '',
+            groupName: prevData.groupName || newOcrData.groupName || '',
+        }));
     };
 
     return (
@@ -471,7 +552,7 @@ const AddReceipt = ({ navigation }) => {
                     <View style={styles.formSection}>
                         <Text style={styles.sectionLabel}>Receipt Attachment</Text>
 
-                        {!selectedFile ? (
+                        {selectedFiles.length === 0 ? (
                             <TouchableOpacity
                                 style={styles.uploadButton}
                                 onPress={() => setShowUploadOptions(true)}
@@ -481,32 +562,40 @@ const AddReceipt = ({ navigation }) => {
                                 <Text style={styles.uploadButtonSubtext}>Camera • Gallery • Document</Text>
                             </TouchableOpacity>
                         ) : (
-                            <View style={styles.selectedFileCard}>
-                                <View style={styles.selectedFileInfo}>
-                                    {selectedFile.uri && (selectedFile.type === 'camera' || selectedFile.type === 'gallery') ? (
-                                        <Image source={{ uri: selectedFile.uri }} style={styles.selectedFilePreview} />
-                                    ) : (
-                                        <Text style={styles.selectedFileIcon}>{selectedFile.icon}</Text>
-                                    )}
-                                    <View style={styles.selectedFileDetails}>
-                                        <Text style={styles.selectedFileName}>{selectedFile.name}</Text>
-                                        <Text style={styles.selectedFileType}>
-                                            {selectedFile.fileSize ? formatFileSize(selectedFile.fileSize) : 'Unknown size'}
-                                        </Text>
-                                        <Text style={styles.selectedFileTimestamp}>Added: {selectedFile.timestamp}</Text>
-                                        {ocrData && (
-                                            <Text style={styles.ocrStatusText}>✓ Data extracted successfully</Text>
-                                        )}
+                            <View>
+                                {selectedFiles.map((file, index) => (
+                                    <View key={index} style={styles.selectedFileCard}>
+                                        <View style={styles.selectedFileInfo}>
+                                            {file.uri && (file.type === 'camera' || file.type === 'gallery') ? (
+                                                <Image source={{ uri: file.uri }} style={styles.selectedFilePreview} />
+                                            ) : (
+                                                <Text style={styles.selectedFileIcon}>{file.icon}</Text>
+                                            )}
+                                            <View style={styles.selectedFileDetails}>
+                                                <Text style={styles.selectedFileName}>{file.name}</Text>
+                                                <Text style={styles.selectedFileType}>
+                                                    {file.fileSize ? formatFileSize(file.fileSize) : 'Unknown size'}
+                                                </Text>
+                                                <Text style={styles.selectedFileTimestamp}>Added: {file.timestamp}</Text>
+                                            </View>
+                                        </View>
+                                        <TouchableOpacity
+                                            style={styles.removeFileButton}
+                                            onPress={() => removeSelectedFile(index)}
+                                        >
+                                            <Text style={styles.removeFileText}>✕</Text>
+                                        </TouchableOpacity>
                                     </View>
-                                </View>
+                                ))}
                                 <TouchableOpacity
-                                    style={styles.removeFileButton}
-                                    onPress={removeSelectedFile}
+                                    style={styles.addMoreButton}
+                                    onPress={() => setShowUploadOptions(true)}
                                 >
-                                    <Text style={styles.removeFileText}>✕</Text>
+                                    <Text style={styles.addMoreButtonText}>+ Add Another Image</Text>
                                 </TouchableOpacity>
                             </View>
                         )}
+
                     </View>
 
                     {/* Add Receipt Button */}
@@ -514,10 +603,10 @@ const AddReceipt = ({ navigation }) => {
                         <TouchableOpacity
                             style={[
                                 styles.addReceiptButton,
-                                (!selectedFile || isProcessingOCR) && styles.addReceiptButtonDisabled
+                                (selectedFiles.length === 0 || isProcessingOCR) && styles.addReceiptButtonDisabled
                             ]}
                             onPress={handleAddReceipt}
-                            disabled={!selectedFile || isProcessingOCR}
+                            disabled={selectedFiles.length === 0 || isProcessingOCR}
                         >
                             <Text style={styles.addReceiptButtonIcon}>✓</Text>
                             <Text style={styles.addReceiptButtonText}>Add Receipt</Text>
@@ -525,8 +614,8 @@ const AddReceipt = ({ navigation }) => {
                     ) : (
                         <AddForm
                             navigation={navigation}
-                            ocrData={ocrData}
-                            selectedFile={selectedFile}
+                            ocrData={combinedOcrData} // Pass combined data instead of ocrData
+                            selectedFile={selectedFiles} // Pass all files instead of single file
                             onSave={(data) => {
                                 setShowAddForm(false);
                             }}
@@ -947,6 +1036,21 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#10B981',
         marginTop: 4,
+        fontWeight: '500',
+    },
+    addMoreButton: {
+        backgroundColor: '#F3F4F6',
+        borderRadius: 8,
+        padding: 12,
+        marginTop: 8,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        borderStyle: 'dashed',
+    },
+    addMoreButtonText: {
+        color: '#6B7280',
+        fontSize: 14,
         fontWeight: '500',
     },
 });

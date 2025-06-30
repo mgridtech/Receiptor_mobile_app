@@ -96,16 +96,18 @@ const HomeScreen = ({ navigation }) => {
           const receiptsWithValidUntil = response.data.filter(receipt => receipt.validUntil);
 
           if (receiptsWithValidUntil.length > 0) {
-            const soonestExpiringReceipt = receiptsWithValidUntil.reduce((earliest, current) => {
-              const earliestDate = new Date(earliest.validUntil);
-              const currentDate = new Date(current.validUntil);
-              return currentDate < earliestDate ? current : earliest;
+            const currentDate = new Date();
+            const sevenDaysFromNow = new Date();
+            sevenDaysFromNow.setDate(currentDate.getDate() + 15);
+
+            const expiringSoonReceipts = receiptsWithValidUntil.filter(receipt => {
+              const expiryDate = new Date(receipt.validUntil);
+              return expiryDate >= currentDate && expiryDate <= sevenDaysFromNow;
             });
 
-            const soonestExpiryDate = new Date(soonestExpiringReceipt.validUntil);
-            if (soonestExpiryDate >= currentDate) {
-              setExpiringSoonCount(1);
-              setExpiringSoonReceipts([soonestExpiringReceipt]);
+            if (expiringSoonReceipts.length > 0) {
+              setExpiringSoonCount(expiringSoonReceipts.length);
+              setExpiringSoonReceipts(expiringSoonReceipts);
             }
           }
 
@@ -116,16 +118,23 @@ const HomeScreen = ({ navigation }) => {
           );
 
           if (medicalReceiptsWithExpiry.length > 0) {
-            const latestExpiringMedical = medicalReceiptsWithExpiry.reduce((latest, current) => {
-              const latestDate = new Date(latest.validUntil);
-              const currentDate = new Date(current.validUntil);
-              return currentDate < latestDate ? current : latest;
+            const currentDate = new Date();
+            const fifteenDaysFromNow = new Date();
+            fifteenDaysFromNow.setDate(currentDate.getDate() + 15);
+
+            const medicalExpiringSoon = medicalReceiptsWithExpiry.filter(receipt => {
+              const expiryDate = new Date(receipt.validUntil);
+              return expiryDate >= currentDate && expiryDate <= fifteenDaysFromNow;
             });
 
-            const expiryDate = new Date(latestExpiringMedical.validUntil);
-            const currentDate = new Date();
-            if (expiryDate >= currentDate) {
-              setLatestExpiringMedicalReceipt(latestExpiringMedical);
+            if (medicalExpiringSoon.length > 0) {
+              const soonestExpiringMedical = medicalExpiringSoon.reduce((earliest, current) => {
+                const earliestDate = new Date(earliest.validUntil);
+                const currentDate = new Date(current.validUntil);
+                return currentDate < earliestDate ? current : earliest;
+              });
+
+              setLatestExpiringMedicalReceipt(soonestExpiringMedical);
             }
           }
         }
@@ -220,7 +229,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.statsContainer}>
           <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('ReceiptsList')} activeOpacity={0.7}>
             <Text style={styles.statNumber}>{totalReceiptsCount}</Text>
-            <Text style={styles.statLabel}>Total Receipts</Text>
+            <Text style={styles.statLabel}>All Receipts</Text>
           </TouchableOpacity>
           <View style={styles.statDivider} />
           <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('MedicalReceipts')} activeOpacity={0.7}>
@@ -232,24 +241,24 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.statDivider} />
           <TouchableOpacity
             style={styles.statItem}
-            onPress={async () => {
-              if (expiringSoonReceipts.length > 0) {
-                const userToken = await AsyncStorage.getItem('userToken');
-                const userId = extractUserIdFromToken(userToken);
+            // onPress={async () => {
+            //   if (expiringSoonReceipts.length > 0) {
+            //     const userToken = await AsyncStorage.getItem('userToken');
+            //     const userId = extractUserIdFromToken(userToken);
 
-                navigation.navigate('ReceiptDetails', {
-                  receipt: {
-                    id: expiringSoonReceipts[0].id,
-                    vendorName: expiringSoonReceipts[0].vendor,
-                    dateReceived: expiringSoonReceipts[0].purchaseDate,
-                    groupName: expiringSoonReceipts[0].category,
-                    amount: `₹${expiringSoonReceipts[0].amount}`,
-                    validupto: expiringSoonReceipts[0].validUntil
-                  },
-                  userId: userId
-                });
-              }
-            }}
+            //     navigation.navigate('ReceiptDetails', {
+            //       receipt: {
+            //         id: expiringSoonReceipts[0].id,
+            //         vendorName: expiringSoonReceipts[0].vendor,
+            //         dateReceived: expiringSoonReceipts[0].purchaseDate,
+            //         groupName: expiringSoonReceipts[0].category,
+            //         amount: `₹${expiringSoonReceipts[0].amount}`,
+            //         validupto: expiringSoonReceipts[0].validUntil
+            //       },
+            //       userId: userId
+            //     });
+            //   }
+            // }}
             activeOpacity={0.7}
           >
             <Text style={[styles.statNumber, { color: 'red' }]}>{expiringSoonCount}</Text>

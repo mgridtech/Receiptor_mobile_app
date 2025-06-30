@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Footer from './FooterH';
-import { getReceipts,deleteReceipt } from '../Services/Services';
+import { getReceipts, deleteReceipt } from '../Services/Services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MedicalReceipts = ({ navigation }) => {
@@ -175,6 +175,30 @@ const MedicalReceipts = ({ navigation }) => {
     filteredReceipts = filteredReceipts.filter(r => r.dateReceived === selectedDate);
   }
 
+  const getReceiptStatus = (expiryDate) => {
+    if (!expiryDate || expiryDate === 'N/A') {
+      return { status: 'No Expiry', color: '#6B7280' };
+    }
+
+    const today = new Date();
+    const dateParts = expiryDate.split('/');
+    const validDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
+
+    today.setHours(0, 0, 0, 0);
+    validDate.setHours(0, 0, 0, 0);
+
+    const timeDiff = validDate.getTime() - today.getTime();
+    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+    if (daysDiff < 0) {
+      return { status: 'Expired', color: '#EF4444' };
+    } else if (daysDiff <= 15) {
+      return { status: 'Expiring Soon', color: '#F59E0B' };
+    } else {
+      return { status: 'Active', color: '#10B981' };
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Purple Header with True Inverted U Shape */}
@@ -303,66 +327,87 @@ const MedicalReceipts = ({ navigation }) => {
                 </View>
 
                 <View style={styles.receiptContent}>
-                  <View style={styles.receiptInfo}>
-                    <Text style={styles.storeName}>{receipt.vendorName}</Text>
-                    <Text style={styles.receiptDate}>Date:  {receipt.dateReceived}</Text>
-                    <Text style={{ fontSize: 12, color: '#666' }}>Expiry: {receipt.expiryDate}</Text>
-                  </View>
-
-                  <View style={styles.receiptAmount}>
-                    <TouchableOpacity
-                      style={{ alignSelf: 'flex-end', marginBottom: 4 }}
-                      onPress={() => handleDeletePress(receipt)}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <View style={{
-                        width: 16,
-                        height: 16,
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                  <View style={styles.receiptContent}>
+                    {/* Status button positioned at top-right */}
+                    <View style={{
+                      position: 'absolute',
+                      top: -2,
+                      right: -9,
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 12,
+                      backgroundColor: getReceiptStatus(receipt.expiryDate).color,
+                      zIndex: 2,
+                    }}>
+                      <Text style={{
+                        color: 'white',
+                        fontSize: 10,
+                        fontWeight: '600',
                       }}>
+                        {getReceiptStatus(receipt.expiryDate).status}
+                      </Text>
+                    </View>
+                    <View style={styles.receiptInfo}>
+                      <Text style={styles.storeName}>{receipt.vendorName}</Text>
+                      <Text style={styles.receiptDate}>Date:  {receipt.dateReceived}</Text>
+                      <Text style={{ fontSize: 12, color: '#666' }}>Expiry: {receipt.expiryDate}</Text>
+                    </View>
+
+                    <View style={styles.receiptAmount}>
+                      <TouchableOpacity
+                        style={{ alignSelf: 'flex-end', marginBottom: 7, marginTop: 27 }}
+                        onPress={() => handleDeletePress(receipt)}
+                        hitSlop={{ top: 10, bottom: 13, left: 10, right: 10 }}
+                      >
                         <View style={{
-                          width: 12,
-                          height: 2,
-                          backgroundColor: '#ff4444',
-                          marginBottom: 1,
-                          borderRadius: 1,
-                        }} />
-                        <View style={{
-                          width: 10,
-                          height: 12,
-                          backgroundColor: '#ff4444',
-                          borderRadius: 2,
-                          position: 'relative',
+                          width: 16,
+                          height: 16,
+                          alignItems: 'center',
+                          justifyContent: 'center',
                         }}>
                           <View style={{
-                            position: 'absolute',
-                            top: 2,
-                            left: 2,
-                            width: 1,
-                            height: 6,
-                            backgroundColor: 'white',
+                            width: 12,
+                            height: 2,
+                            backgroundColor: '#ff4444',
+                            marginBottom: 1,
+                            borderRadius: 1,
                           }} />
                           <View style={{
-                            position: 'absolute',
-                            top: 2,
-                            left: 4.5,
-                            width: 1,
-                            height: 6,
-                            backgroundColor: 'white',
-                          }} />
-                          <View style={{
-                            position: 'absolute',
-                            top: 2,
-                            right: 2,
-                            width: 1,
-                            height: 6,
-                            backgroundColor: 'white',
-                          }} />
+                            width: 10,
+                            height: 12,
+                            backgroundColor: '#ff4444',
+                            borderRadius: 2,
+                            position: 'relative',
+                          }}>
+                            <View style={{
+                              position: 'absolute',
+                              top: 2,
+                              left: 2,
+                              width: 1,
+                              height: 6,
+                              backgroundColor: 'white',
+                            }} />
+                            <View style={{
+                              position: 'absolute',
+                              top: 2,
+                              left: 4.5,
+                              width: 1,
+                              height: 6,
+                              backgroundColor: 'white',
+                            }} />
+                            <View style={{
+                              position: 'absolute',
+                              top: 2,
+                              right: 2,
+                              width: 1,
+                              height: 6,
+                              backgroundColor: 'white',
+                            }} />
+                          </View>
                         </View>
-                      </View>
-                    </TouchableOpacity>
-                    <Text style={styles.amountText}>{receipt.amount}</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.amountText}>{receipt.amount}</Text>
+                    </View>
                   </View>
                 </View>
               </TouchableOpacity>
