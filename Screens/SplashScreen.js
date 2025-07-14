@@ -9,8 +9,17 @@ const SplashScreen = ({ navigation }) => {
     const timer = setTimeout(async () => {
       try {
         const userToken = await AsyncStorage.getItem('userToken')
-        
+
         if (userToken) {
+          const fcmToken = await AsyncStorage.getItem('fcmToken')
+          const firebaseUserId = await AsyncStorage.getItem('firebaseUserId')
+
+          console.log('=== Splash Screen Token Check ===')
+          console.log('User Token:', userToken ? 'EXISTS' : 'NOT FOUND')
+          console.log('FCM Token:', fcmToken ? 'EXISTS' : 'NOT FOUND')
+          console.log('Firebase User ID:', firebaseUserId ? 'EXISTS' : 'NOT FOUND')
+          console.log('================================')
+
           navigation.replace('Home')
         } else {
           navigation.replace('Login')
@@ -20,7 +29,7 @@ const SplashScreen = ({ navigation }) => {
         navigation.replace('Login')
       }
     }, 3000)
-    
+
     return () => clearTimeout(timer)
   }, [navigation])
 

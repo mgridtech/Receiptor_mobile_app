@@ -4,6 +4,7 @@ import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { createReceipt, fetchCategories } from '../Services/Services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { extractUserIdFromToken } from './ExtractUserId';
 
 const getCurrentDate = () => {
     const today = new Date();
@@ -57,11 +58,11 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
         if (ocrData) {
             setFormData(prevData => ({
                 ...prevData,
-                groupName: ocrData.groupName || prevData.groupName,
-                vendorName: ocrData.vendorName || prevData.vendorName,
-                amount: ocrData.amount || prevData.amount,
-                dateReceived: formatDateForForm(ocrData.dateReceived) || prevData.dateReceived,
-                wore: formatDateForForm(ocrData.expiryDate) || prevData.wore,
+                groupName: ocrData?.groupName || prevData?.groupName,
+                vendorName: ocrData?.vendorName || prevData?.vendorName,
+                amount: ocrData?.amount || prevData?.amount,
+                dateReceived: formatDateForForm(ocrData?.dateReceived) || prevData?.dateReceived,
+                wore: formatDateForForm(ocrData?.expiryDate) || prevData?.wore,
             }));
         }
     }, [ocrData]);
@@ -100,123 +101,73 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
             return null;
         }
     };
-    const formatDateForAPI = (dateStr) => {
-        if (!dateStr) return null;
-        const [day, month, year] = dateStr.split('-');
-        return `${year}-${month}-${day}`;
-    };
+
     const getCategoryId = (categoryName) => {
         const category = categories.find(cat => cat.name === categoryName);
         return category ? category.id : (categories.length > 0 ? categories[0].id : 1);
     };
 
-    const handleSave = async (retryCount = 0) => {
-        if (
-            !formData.groupName ||
-            formData.groupName === "" ||
-            !formData.vendorName.trim() ||
-            !formData.dateReceived ||
-            !formData.amount.trim()
-        ) {
+    const handleSave = async () => {
+        if (!formData.groupName || !formData.vendorName.trim() || !formData.dateReceived || !formData.amount.trim()) {
             Alert.alert('Error', 'Please fill all required fields.');
             return;
         }
 
         try {
-            const firebaseUserId = await AsyncStorage.getItem('firebaseUserId');
-            if (!firebaseUserId) {
-                Alert.alert('Error', 'User authentication required. Please login again.');
+            const userToken = await AsyncStorage.getItem('userToken');
+            if (!userToken) {
+                Alert.alert('Error', 'Please login again.');
                 return;
             }
 
-            console.log('Starting receipt save process... Attempt:', retryCount + 1);
-            console.log('Form data:', formData);
-
             const apiFormData = new FormData();
 
-            if (selectedFile) {
-                console.log('Adding file to FormData:', selectedFile.name);
+            if (selectedFile && selectedFile.length > 0) {
+                const file = selectedFile[0];
+                const maxFileSize = 2 * 1024 * 1024;
 
-                const maxFileSize = 2 * 1024 * 1024; // 2MB limit
-                if (selectedFile.size && selectedFile.size > maxFileSize) {
-                    Alert.alert('Error', 'File size too large. Please select a smaller image (max 2MB).');
+                if (file.size && file.size > maxFileSize) {
+                    Alert.alert('Error', 'File too large. Max 2MB allowed.');
                     return;
                 }
 
                 apiFormData.append('receiptFile', {
-                    uri: selectedFile.uri,
-                    type: selectedFile.mimeType || 'image/jpeg',
-                    name: selectedFile.name || 'receipt.jpg',
+                    uri: file.uri,
+                    type: file.mimeType || 'image/jpeg',
+                    name: file.name || 'receipt.jpg',
                 });
             }
 
-            const purchaseDate = formatDateForAPI(formData.dateReceived);
-            const validUntilDate = formatDateForAPI(formData.wore || formData.dateReceived);
+            const purchaseDate = new Date(parseDate(formData.dateReceived)).toISOString().split('T')[0];
+            const validUntilDate = new Date(parseDate(formData.wore || formData.dateReceived)).toISOString().split('T')[0];
             const categoryId = getCategoryId(formData.groupName);
 
-            console.log('Formatted dates - Purchase:', purchaseDate, 'Valid Until:', validUntilDate);
-            console.log('Category ID:', categoryId);
-
+            apiFormData.append('categoryId', categoryId.toString());
             apiFormData.append('vendorName', formData.vendorName.trim());
             apiFormData.append('note', formData.note?.trim() || '');
             apiFormData.append('purchaseDate', purchaseDate);
             apiFormData.append('totalAmount', formData.amount.trim());
             apiFormData.append('validUntil', validUntilDate);
-            apiFormData.append('categoryId', categoryId.toString());
 
-            if (formData.groupName.toLowerCase() === 'medical' && formData.medicines) {
-                apiFormData.append('medicines', JSON.stringify(formData.medicines));
-            }
+            console.log('Saving receipt...');
+            const response = await createReceipt(apiFormData, userToken);
 
-            console.log('Calling API...');
-
-            const response = await createReceipt(apiFormData);
-            console.log('API call successful:', response);
-
-            Alert.alert('Success', 'Receipt saved successfully!');
+            Alert.alert('Success', response.message || 'Receipt saved successfully!');
 
             if (onSave) onSave(formData);
 
-            if (formData.groupName.toLowerCase() === 'medical') {
+            if (formData.groupName.toLowerCase() === 'medicine') {
                 navigation.navigate('MedicalReceipts');
             } else {
                 navigation.navigate('ReceiptsList');
             }
+
         } catch (error) {
-            console.error('Error saving receipt:', error);
-
-            if (error.message.includes('Database connection timeout') && retryCount < 2) {
-                Alert.alert(
-                    'Retry?',
-                    `Database is busy. Attempt ${retryCount + 1} failed. Try again?`,
-                    [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                            text: 'Retry',
-                            onPress: () => {
-                                setTimeout(() => handleSave(retryCount + 1), 2000); // Wait 2 seconds before retry
-                            }
-                        }
-                    ]
-                );
-                return;
-            }
-
-            let errorMessage = 'Failed to save receipt. Please try again.';
-
-            if (error.message.includes('Database connection timeout')) {
-                errorMessage = 'Database is currently busy. Please try again in a few minutes.';
-            } else if (error.message.includes('Server is temporarily unavailable')) {
-                errorMessage = 'Server is temporarily unavailable. Please try again later.';
-            } else if (error.message.includes('authentication')) {
-                errorMessage = 'Authentication failed. Please login again.';
-            } else if (error.message.includes('Invalid data format')) {
-                errorMessage = 'Please check your input data and try again.';
-            }
-
-            Alert.alert('Error', errorMessage);
+            console.error('Save error:', error);
+            Alert.alert('Error', error.message || 'Failed to save receipt.');
         }
     };
+
 
     const parseDate = (dateStr) => {
         if (!dateStr) return new Date();

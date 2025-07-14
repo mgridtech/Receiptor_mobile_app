@@ -1,5 +1,7 @@
+import { NativeModules } from 'react-native';
+const { VoiceNotification } = NativeModules;
 import React, { useEffect } from 'react'
-import { Platform, Alert, PermissionsAndroid, ToastAndroid } from 'react-native'
+import { Platform, Alert, PermissionsAndroid, AppState } from 'react-native'
 import firebase from '@react-native-firebase/app';
 import messaging from '@react-native-firebase/messaging';
 import { NavigationContainer } from '@react-navigation/native'
@@ -17,12 +19,12 @@ import AddReceipt from './Screens/AddReceipt'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import notifee, { AndroidImportance } from '@notifee/react-native';
 import Tts from 'react-native-tts';
+import AddMedicine from './Screens/AddMedicine';
 
 const Stack = createNativeStackNavigator()
 
 const App = () => {
-  // Simple voice function - ADD THIS
-  const speakText = (text) => {
+  const speakText = (text: any) => {
     try {
       Tts.speak(text);
     } catch (error) {
@@ -31,27 +33,24 @@ const App = () => {
   };
 
   useEffect(() => {
-    // Handle background/quit state notifications
     messaging().onNotificationOpenedApp(remoteMessage => {
       console.log('Notification opened app:', remoteMessage);
       const text = remoteMessage.notification?.body || 'New message';
-      setTimeout(() => speakText(text), 1000); // Delay to ensure app is ready
+      setTimeout(() => speakText(text), 1000);
     });
 
-    // Handle notification when app is quit
     messaging()
       .getInitialNotification()
       .then(remoteMessage => {
         if (remoteMessage) {
           console.log('Notification caused app to open:', remoteMessage);
           const text = remoteMessage.notification?.body || 'New message';
-          setTimeout(() => speakText(text), 2000); // Longer delay for cold start
+          setTimeout(() => speakText(text), 2000);
         }
       });
   }, []);
 
   useEffect(() => {
-    // Initialize TTS - ADD THIS
     Tts.setDefaultLanguage('en-US');
     Tts.setDefaultRate(0.5);
 
@@ -105,31 +104,32 @@ const App = () => {
         vibration: true,
       });
 
-      const notificationText = remoteMessage.notification?.body || 'You have a new message';
+      const notificationText = remoteMessage.notification?.body;
 
-
-      // ADD THIS LINE - Voice notification
-      speakText(notificationText);
-
-      await notifee.displayNotification({
-        title: remoteMessage.notification?.title || 'New Notification',
-        body: notificationText,
-        android: {
-          channelId,
-          sound: 'default',
-          smallIcon: 'ic_launcher',
-          pressAction: {
-            id: 'default',
+      if (notificationText) {
+        speakText(notificationText);
+      }
+      if (remoteMessage.notification?.title && remoteMessage.notification?.body) {
+        await notifee.displayNotification({
+          title: remoteMessage.notification?.title,
+          body: remoteMessage.notification?.body,
+          android: {
+            channelId,
+            sound: 'default',
+            smallIcon: 'ic_launcher',
+            pressAction: {
+              id: 'default',
+            },
+            ongoing: false,
+            autoCancel: true,
           },
-          // Add this for better background handling
-          ongoing: false,
-          autoCancel: true,
-        },
-      });
+        });
+      }
     });
 
     return unsubscribe;
   }, []);
+
 
   return (
     <NavigationContainer>
@@ -144,6 +144,7 @@ const App = () => {
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="Settings" component={Settings} />
         <Stack.Screen name="AddReceipt" component={AddReceipt} />
+        <Stack.Screen name="AddMedicine" component={AddMedicine} />
       </Stack.Navigator>
     </NavigationContainer>
   )

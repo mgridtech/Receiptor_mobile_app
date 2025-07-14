@@ -15,7 +15,7 @@ import ForgotPasswordScreen from './ForgotPass';
 import auth from '@react-native-firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jwtDecode } from 'jwt-decode';
-import { baseURL } from '../Services/Services';
+import { baseURL, DeviceToken, updateDeviceToken } from '../Services/Services';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -42,11 +42,15 @@ const LoginScreen = ({ navigation }) => {
       await AsyncStorage.setItem('firebaseUserId', firebaseUserId);
 
       const fcmToken = await AsyncStorage.getItem('fcmToken');
+      const storedFcmToken = await AsyncStorage.getItem('storedFcmToken');
+
       console.log('=== FCM Token Debug ===');
-      console.log('FCM Token from AsyncStorage:', fcmToken);
+      console.log('Current FCM Token from AsyncStorage:', fcmToken);
+      console.log('Previously stored FCM Token:', storedFcmToken);
       console.log('FCM Token length:', fcmToken?.length);
       console.log('FCM Token exists:', !!fcmToken);
-      
+      console.log('Tokens are same:', fcmToken === storedFcmToken);
+
       const response = await fetch(`${baseURL}/user/profile`, {
         method: 'GET',
         headers: {
@@ -85,6 +89,58 @@ const LoginScreen = ({ navigation }) => {
         console.log('=============================');
 
         const displayName = userData?.data?.name || user.email;
+
+        if (fcmToken) {
+          // Get the stored user ID to compare with current login
+          const storedUserId = await AsyncStorage.getItem('firebaseUserId');
+
+          console.log('=== User ID Comparison ===');
+          console.log('Current Firebase User ID:', firebaseUserId);
+          console.log('Stored Firebase User ID:', storedUserId);
+          console.log('User IDs are same:', firebaseUserId === storedUserId);
+          console.log('Stored User ID exists:', !!storedUserId);
+          console.log('========================');
+
+          // Check if stored user ID exists and matches current user ID
+          if (storedUserId && firebaseUserId === storedUserId) {
+            // Same user - check if FCM token has changed
+            if (fcmToken !== storedFcmToken) {
+              console.log('Same user, FCM token has changed, updating device token...');
+
+              if (storedFcmToken) {
+                // Update existing device token
+                const updateResult = await updateDeviceToken({
+                  oldToken: storedFcmToken,
+                  newToken: fcmToken
+                });
+                console.log('Update result:', updateResult);
+
+                if (updateResult.success) {
+                  console.log('Device token updated successfully:', updateResult.data);
+                  await AsyncStorage.setItem('storedFcmToken', fcmToken);
+                } else {
+                  console.error('Failed to update device token:', updateResult.error);
+                }
+              } else {
+                // Same user but no previous token stored, create new record
+                console.log('Same user but no previous FCM token, creating new record...');
+                const deviceTokenResponse = await DeviceToken(fcmToken);
+                console.log('DeviceToken API response:', deviceTokenResponse);
+                await AsyncStorage.setItem('storedFcmToken', fcmToken);
+              }
+            } else {
+              console.log('Same user, FCM token is the same, no update needed');
+            }
+          } else {
+            // Different user OR first time login - create new device token record
+            console.log('Different user OR first time login, creating new device token record...');
+            const deviceTokenResponse = await DeviceToken(fcmToken);
+            console.log('DeviceToken API response:', deviceTokenResponse);
+            await AsyncStorage.setItem('storedFcmToken', fcmToken);
+          }
+        } else {
+          console.warn('FCM token not found — skipping device token registration.');
+        }
         Alert.alert(
           'Login Successful',
           `Welcome back, ${displayName}!`,

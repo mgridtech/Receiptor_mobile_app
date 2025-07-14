@@ -11,6 +11,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import Footer from './FooterH';
 import { getReceipts, deleteReceipt } from '../Services/Services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { extractUserIdFromToken } from './ExtractUserId'; 
 
 const MedicalReceipts = ({ navigation }) => {
   const [selectedDate, setSelectedDate] = useState(null);
@@ -22,29 +23,6 @@ const MedicalReceipts = ({ navigation }) => {
   const [receiptToDelete, setReceiptToDelete] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
-  const extractUserIdFromToken = (token) => {
-    try {
-      const parts = token.split('.');
-      if (parts.length !== 3) {
-        throw new Error('Invalid token format');
-      }
-
-      const payload = parts[1];
-
-      const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
-
-      const decodedPayload = atob(paddedPayload);
-
-      const parsedPayload = JSON.parse(decodedPayload);
-
-      console.log('Extracted token payload:', parsedPayload);
-
-      return parsedPayload.userId;
-    } catch (error) {
-      console.error('Error extracting userId from token:', error);
-      return null;
-    }
-  };
 
   useEffect(() => {
     const fetchMedicalReceipts = async () => {
@@ -67,7 +45,7 @@ const MedicalReceipts = ({ navigation }) => {
 
         console.log('Using numeric userId:', userId);
 
-        const response = await getReceipts(userId, userToken);
+        const response = await getReceipts(userToken);
 
         if (response.success) {
 
@@ -77,7 +55,7 @@ const MedicalReceipts = ({ navigation }) => {
             return;
           }
           const medicalReceipts = response.data.filter(receipt =>
-            receipt.category && receipt.category.toLowerCase() === 'medical'
+            receipt.category && receipt.category.toLowerCase() === 'medicine'
           );
 
           if (medicalReceipts.length === 0) {
@@ -120,13 +98,9 @@ const MedicalReceipts = ({ navigation }) => {
     try {
       setShowDeleteModal(false);
 
-      const userToken = await AsyncStorage.getItem('userToken');
-      const userId = extractUserIdFromToken(userToken);
-
-      const response = await deleteReceipt(userId, receiptToDelete.id);
+      const response = await deleteReceipt(receiptToDelete.id);
 
       if (response.success) {
-        // Remove the deleted receipt from the state
         setReceipts(receipts.filter(receipt => receipt.id !== receiptToDelete.id));
         setShowSuccessMessage(true);
         setTimeout(() => {
@@ -158,7 +132,7 @@ const MedicalReceipts = ({ navigation }) => {
   };
 
   const getMedicalIcon = (vendor) => {
-    const icons = ['💊', '🏥', '💉', '🩺', '🏩'];
+    const icons = ['🧾'];
     const index = vendor ? vendor.length % icons.length : 0;
     return icons[index];
   };
@@ -313,7 +287,7 @@ const MedicalReceipts = ({ navigation }) => {
             </Text>
           ) : filteredReceipts.length === 0 ? (
             <Text style={{ textAlign: 'center', color: '#7C3AED', marginTop: 40 }}>
-              {selectedDate ? 'No receipts found for the selected date' : 'No receipts found'}
+              {selectedDate ? 'No receipts uploaded on the selected date' : 'No receipts found'}
             </Text>
           ) : (
             filteredReceipts.map((receipt) => (
@@ -665,6 +639,28 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   addReceiptButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  actionButtonsContainer: {
+    marginTop: 10,
+  },
+  updateButton: {
+    backgroundColor: '#7C3AED',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#7C3AED',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  updateButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',

@@ -15,6 +15,7 @@ import UpdateReceipt from './UpdateReceipt';
 import ViewFullImage from './ViewFullImage';
 import { getReceiptDetails, updateReminder } from '../Services/Services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { extractUserIdFromToken } from './ExtractUserId';
 
 const IOSToggle = ({ value, onValueChange, activeColor = '#9A6BD4', inactiveColor = '#E5E5EA' }) => {
     const [animatedValue] = useState(new Animated.Value(value ? 1 : 0));
@@ -66,29 +67,6 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
     const [tempReceiptData, setTempReceiptData] = useState({ ...receipt });
     const [imageModalVisible, setImageModalVisible] = useState(false);
 
-    const extractUserIdFromToken = (token) => {
-        try {
-            const parts = token.split('.');
-            if (parts.length !== 3) {
-                throw new Error('Invalid token format');
-            }
-
-            const payload = parts[1];
-
-            const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
-
-            const decodedPayload = atob(paddedPayload);
-
-            const parsedPayload = JSON.parse(decodedPayload);
-
-            console.log('Extracted token payload:', parsedPayload);
-
-            return parsedPayload.userId;
-        } catch (error) {
-            console.error('Error extracting userId from token:', error);
-            return null;
-        }
-    };
 
     useEffect(() => {
         const fetchReceiptDetails = async () => {
@@ -264,7 +242,7 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
 
                                     if (nextValue) {
                                         try {
-                                            const response = await updateReminder(userId, receiptData.id);
+                                            const response = await updateReminder(receiptData.id);
                                             if (response.success) {
                                                 setIsAutoReminderEnabled(true);
                                             } else {
@@ -283,7 +261,7 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
                                                     text: 'Yes',
                                                     onPress: async () => {
                                                         try {
-                                                            const response = await updateReminder(userId, receiptData.id);
+                                                            const response = await updateReminder(receiptData.id);
                                                             if (response.success) {
                                                                 setIsAutoReminderEnabled(false);
                                                             } else {

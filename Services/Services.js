@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import auth from '@react-native-firebase/auth';
 
 // export const baseURL = "http://10.0.2.2:8010"; // For Android emulator
-export const baseURL = "http://192.168.1.9:8010"; // For physical device
+// export const baseURL = "http://192.168.1.38:8010"; // For physical device 
+export const baseURL = "https://receiptor-backend.onrender.com";
 
 export const getBaseURL = () => baseURL;
 
@@ -51,7 +51,6 @@ export const register = async ({ name, email, phone, password }) => {
 export const getUserProfile = async (token) => {
     try {
         console.log('=== PROFILE API DEBUG ===');
-        console.log('Token (first 50 chars):', token ? token.substring(0, 50) + '...' : 'NO TOKEN');
         console.log('Full URL:', `${baseURL}/user/profile`);
 
         const headers = {
@@ -115,7 +114,6 @@ export const testTokenFormat = async (token) => {
     try {
         console.log('=== TOKEN FORMAT TEST ===');
         console.log('Token length:', token ? token.length : 0);
-        console.log('Token starts with:', token ? token.substring(0, 20) : 'NO TOKEN');
 
         if (token) {
             const parts = token.split('.');
@@ -215,72 +213,27 @@ export const updateUserProfile = async ({ name, email, phone }) => {
     }
 };
 
-export const createReceipt = async (formData) => {
+export const createReceipt = async (formData, userToken) => {
     try {
-        const currentUser = auth().currentUser;
-        if (!currentUser) {
-            throw new Error('User not authenticated');
-        }
-
-        const idToken = await currentUser.getIdToken();
-        console.log('Making request to:', `${baseURL}/create/receipt`);
-        console.log('Firebase UID:', currentUser.uid);
-
         const response = await fetch(`${baseURL}/create/receipt`, {
             method: 'POST',
             body: formData,
             headers: {
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${idToken}`,
+                'Authorization': `Bearer ${userToken}`,
             },
-            timeout: 120000, // Increase timeout to 2 minutes for database issues
         });
 
-        console.log('Response status:', response.status);
-
         if (!response.ok) {
-            const contentType = response.headers.get('content-type');
-            let errorText;
-
-            if (contentType && contentType.includes('application/json')) {
-                const errorData = await response.json();
-                errorText = errorData.message || JSON.stringify(errorData);
-            } else {
-                errorText = await response.text();
-            }
-
-            console.error('API Error Response:', errorText);
-
-            // Handle specific error cases
-            if (response.status === 408 || errorText.includes('timeout') || errorText.includes('SequelizeConnectionAcquireTimeoutError')) {
-                throw new Error('Database connection timeout. Please try again in a few minutes.');
-            }
-
-            if (response.status === 400 && errorText.includes('Validation failed')) {
-                throw new Error('Invalid data format. Please check your input and try again.');
-            }
-
-            if (response.status >= 500) {
-                throw new Error('Server is temporarily unavailable. Please try again later.');
-            }
-
-            throw new Error(`Server error (${response.status}). Please try again.`);
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
-
         const data = await response.json();
-        console.log('Success response:', data);
         return data;
     } catch (error) {
-        console.error('Create receipt error:', error);
-
-        // Handle network errors specifically
-        if (error.message === 'Network request failed') {
-            throw new Error('Connection failed. Please check your internet connection and try again.');
-        }
-
+        console.error('API Error:', error);
         throw error;
     }
-}
+};
 
 export const fetchCategories = async (token) => {
     try {
@@ -345,73 +298,48 @@ export const fetchCategories = async (token) => {
     }
 };
 
-export const getReceipts = async (userId, token) => {
+export const getReceipts = async (token) => {
     try {
-        console.log('=== RECEIPTS API DEBUG ===');
-        console.log('UserId:', userId);
-        console.log('Token (first 50 chars):', token ? token.substring(0, 50) + '...' : 'NO TOKEN');
-        console.log('Full URL:', `${baseURL}/fetch/receipts/${userId}`);
-
+        console.log("uAT", token)
         const headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'Authorization': `Bearer ${token}`,
         };
 
-        console.log('Request headers:', JSON.stringify(headers, null, 2));
-
-        const response = await fetch(`${baseURL}/fetch/receipts/${userId}`, {
+        const response = await fetch(`${baseURL}/fetch/receipts`, {
             method: 'GET',
             headers: headers,
         });
 
         console.log('Response status:', response.status);
-        console.log('Response headers:', JSON.stringify(response.headers, null, 2));
 
         const responseText = await response.text();
         console.log('Raw response body:', responseText);
 
         if (!response.ok) {
             let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-
             try {
                 const errorData = JSON.parse(responseText);
-                console.log('Parsed error data:', errorData);
-                if (errorData.message) {
-                    errorMessage = errorData.message;
-                } else if (errorData.error) {
-                    errorMessage = errorData.error;
-                }
+                errorMessage = errorData.message || errorData.error || errorMessage;
             } catch (parseError) {
-                console.log('Could not parse error response as JSON');
                 errorMessage = `${errorMessage} - Raw response: ${responseText}`;
             }
-
             throw new Error(errorMessage);
         }
 
-        let result;
-        try {
-            result = JSON.parse(responseText);
-            console.log('Parsed success response:', JSON.stringify(result, null, 2));
-        } catch (parseError) {
-            console.error('Could not parse success response as JSON:', parseError);
-            throw new Error('Invalid JSON response from server');
-        }
-
+        const result = JSON.parse(responseText);
         return { success: true, data: result.data || result };
     } catch (error) {
-        console.error('=== RECEIPTS API ERROR ===');
-        console.error('Error type:', error.constructor.name);
-        console.error('Error message:', error.message);
-        console.error('Full error:', error);
+        // console.error('=== RECEIPTS API ERROR ===');
+        // console.error('Error message:', error.message);
         return { success: false, error: error.message };
     }
 };
 
-export const deleteReceipt = async (userId, receiptId) => {
+export const deleteReceipt = async (receiptId) => {
     try {
-        console.log('Attempting to delete receipt with URL:', `${baseURL}/receipt/delete/${userId}/${receiptId}`);
+        console.log('Attempting to delete receipt with URL:', `${baseURL}/receipt/delete/${receiptId}`);
 
         const token = await AsyncStorage.getItem('userToken');
 
@@ -419,7 +347,7 @@ export const deleteReceipt = async (userId, receiptId) => {
             throw new Error('Authentication token not found. Please login again.');
         }
 
-        const response = await fetch(`${baseURL}/receipt/delete/${userId}/${receiptId}`, {
+        const response = await fetch(`${baseURL}/receipt/delete/${receiptId}`, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
@@ -457,8 +385,7 @@ export const getReceiptDetails = async (userId, receiptId, token) => {
         console.log('=== RECEIPT DETAILS API DEBUG ===');
         console.log('UserId:', userId);
         console.log('ReceiptId:', receiptId);
-        console.log('Token (first 50 chars):', token ? token.substring(0, 50) + '...' : 'NO TOKEN');
-        console.log('Full URL:', `${baseURL}/receipt/details/${userId}/${receiptId}`);
+        console.log('Full URL:', `${baseURL}/receipt/details/${receiptId}`);
 
         const headers = {
             'Content-Type': 'application/json',
@@ -468,7 +395,7 @@ export const getReceiptDetails = async (userId, receiptId, token) => {
 
         console.log('Request headers:', JSON.stringify(headers, null, 2));
 
-        const response = await fetch(`${baseURL}/receipt/details/${userId}/${receiptId}`, {
+        const response = await fetch(`${baseURL}/receipt/details/${receiptId}`, {
             method: 'GET',
             headers: headers,
         });
@@ -517,7 +444,7 @@ export const getReceiptDetails = async (userId, receiptId, token) => {
     }
 };
 
-export const updateReminder = async (userId, receiptId) => {
+export const updateReminder = async (receiptId) => {
     try {
         const token = await AsyncStorage.getItem('userToken');
 
@@ -525,9 +452,9 @@ export const updateReminder = async (userId, receiptId) => {
             throw new Error('Authentication token not found. Please login again.');
         }
 
-        console.log('Attempting to update reminder with URL:', `${baseURL}/receipt/notify/${userId}/${receiptId}`);
+        console.log('Attempting to update reminder with URL:', `${baseURL}/receipt/notify/${receiptId}`);
 
-        const response = await fetch(`${baseURL}/receipt/notify/${userId}/${receiptId}`, {
+        const response = await fetch(`${baseURL}/receipt/notify/${receiptId}`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
@@ -556,6 +483,131 @@ export const updateReminder = async (userId, receiptId) => {
         return { success: true, data: result };
     } catch (error) {
         console.error('Error updating reminder:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+export const DeviceToken = async (deviceToken) => {
+  try {
+    const userToken = await AsyncStorage.getItem('userToken');
+    console.log('Retrieved userToken for DeviceToken:', userToken?.substring(0, 20) + '...');
+
+    const response = await fetch(`${baseURL}/device-token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${userToken}`,
+      },
+      body: JSON.stringify({ deviceToken }),
+    });
+
+    console.log('DeviceToken response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`DeviceToken error: ${response.status} ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('DeviceToken success:', result);
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('DeviceToken failed:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const updateDeviceToken = async ({ oldToken, newToken }) => {
+    try {
+        console.log('Attempting to update device token with URL:', `${baseURL}/update-device-token`);
+
+        const token = await AsyncStorage.getItem('userToken');
+
+        if (!token) {
+            throw new Error('Authentication token not found. Please login again.');
+        }
+
+        const response = await fetch(`${baseURL}/update-device-token`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                oldToken,
+                newToken,
+            }),
+        });
+
+        console.log('Response status:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorMessage = `Failed to update device token: ${response.status} ${errorText}`;
+
+            try {
+                const errorData = JSON.parse(errorText);
+                if (errorData.message) {
+                    errorMessage = errorData.message;
+                }
+            } catch (e) {
+            }
+            throw new Error(errorMessage);
+        }
+
+        const result = await response.json();
+        return { success: true, data: result };
+    } catch (error) {
+        console.error('Error updating device token:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+export const logout = async () => {
+    try {
+        console.log('Attempting to logout with URL:', `${baseURL}/logout`);
+
+        const token = await AsyncStorage.getItem('userToken');
+        const deviceToken = await AsyncStorage.getItem('fcmToken');
+
+        if (!token) {
+            throw new Error('Authentication token not found. Please login again.');
+        }
+
+        const response = await fetch(`${baseURL}/logout`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                token: deviceToken || '',
+            }),
+        });
+
+        console.log('Logout response status:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorMessage = `Failed to logout: ${response.status} ${errorText}`;
+
+            try {
+                const errorData = JSON.parse(errorText);
+                if (errorData.message) {
+                    errorMessage = errorData.message;
+                }
+            } catch (e) {
+            }
+            throw new Error(errorMessage);
+        }
+
+        const result = await response.json();
+        return { success: true, data: result };
+    } catch (error) {
+        console.error('Error during logout:', error);
         return { success: false, error: error.message };
     }
 };

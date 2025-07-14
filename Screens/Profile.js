@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -11,7 +12,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Footer from './FooterH';
 import EditProfile from './EditProfile';
-import { getUserProfile, testTokenFormat, testServerConnection } from '../Services/Services';
+import { getUserProfile, testTokenFormat, testServerConnection,logout } from '../Services/Services';
 const ProfileScreen = ({ navigation }) => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [profileData, setProfileData] = useState({
@@ -85,11 +86,27 @@ const ProfileScreen = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('User logging out...');
+              
+              const logoutResult = await logout();
+              
+              if (logoutResult.success) {
+                console.log('Logout successful:', logoutResult.data);
+              } else {
+                console.error('Logout failed:', logoutResult.error);
+              }
+              
               await AsyncStorage.removeItem('userToken');
-              console.log('User logged out,token removed from AsyncStorage');
+              await AsyncStorage.removeItem('userEmail');
+              await AsyncStorage.removeItem('userName');
+              await AsyncStorage.removeItem('firebaseUserId');
+              await AsyncStorage.removeItem('storedFcmToken');
+              
+              console.log('User logged out and AsyncStorage cleared');
               navigation.replace('Login');
             } catch (error) {
               console.error('Error during logout:', error);
+              navigation.replace('Login');
             }
           }
         }

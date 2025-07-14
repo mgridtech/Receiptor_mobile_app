@@ -11,6 +11,7 @@ import {
 import Footer from './FooterH';
 import { getReceipts } from '../Services/Services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { extractUserIdFromToken } from './ExtractUserId';
 
 const { width } = Dimensions.get('window');
 
@@ -24,29 +25,6 @@ const HomeScreen = ({ navigation }) => {
   const [expiringSoonReceipts, setExpiringSoonReceipts] = useState([]);
   const [latestExpiringMedicalReceipt, setLatestExpiringMedicalReceipt] = useState(null);
 
-  const extractUserIdFromToken = (token) => {
-    try {
-      const parts = token.split('.');
-      if (parts.length !== 3) {
-        throw new Error('Invalid token format');
-      }
-
-      const payload = parts[1];
-
-      const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
-
-      const decodedPayload = atob(paddedPayload);
-
-      const parsedPayload = JSON.parse(decodedPayload);
-
-      console.log('Extracted token payload:', parsedPayload);
-
-      return parsedPayload.userId;
-    } catch (error) {
-      console.error('Error extracting userId from token:', error);
-      return null;
-    }
-  };
 
   useEffect(() => {
     const fetchReceiptCounts = async () => {
@@ -65,7 +43,7 @@ const HomeScreen = ({ navigation }) => {
           return;
         }
 
-        const response = await getReceipts(userId, userToken);
+        const response = await getReceipts(userToken);
 
         setTotalReceiptsCount(0);
         setCurrentMonthCount(0);
@@ -75,7 +53,10 @@ const HomeScreen = ({ navigation }) => {
         setLatestExpiringMedicalReceipt(null);
 
         if (response.success && response.data && Array.isArray(response.data) && response.data.length > 0) {
-          setTotalReceiptsCount(response.data.length);
+          const nonMedicalReceipts = response.data.filter(receipt =>
+            !(receipt.category && receipt.category.toLowerCase() === 'medicine')
+          );
+          setTotalReceiptsCount(nonMedicalReceipts.length);
 
           const currentDate = new Date();
           const currentMonth = currentDate.getMonth();
@@ -89,7 +70,7 @@ const HomeScreen = ({ navigation }) => {
           setCurrentMonthCount(currentMonthReceipts.length);
 
           const medicalReceipts = response.data.filter(receipt =>
-            receipt.category && receipt.category.toLowerCase() === 'medical'
+            receipt.category && receipt.category.toLowerCase() === 'medicine'
           );
           setMedicalCount(medicalReceipts.length);
 
@@ -113,7 +94,7 @@ const HomeScreen = ({ navigation }) => {
 
           const medicalReceiptsWithExpiry = response.data.filter(receipt =>
             receipt.category &&
-            receipt.category.toLowerCase() === 'medical' &&
+            receipt.category.toLowerCase() === 'medicine' &&
             receipt.validUntil
           );
 
@@ -174,13 +155,8 @@ const HomeScreen = ({ navigation }) => {
     navigation.navigate('MedicalReceipts');
   };
 
-  const exampleReceipt = {
-    id: 1,
-    vendorName: 'Apollo Pharmacy',
-    dateReceived: '12/05/2024',
-    groupName: 'Medical',
-    amount: '$24.50',
-    validupto: '25/07/2025'
+  const handleMedicines = () => {
+    navigation.navigate('Medicines');
   };
 
   return (
@@ -336,9 +312,24 @@ const HomeScreen = ({ navigation }) => {
             activeOpacity={0.8}
           >
             <View style={styles.categoryIconContainer}>
-              <Text style={styles.categoryIcon}>💊</Text>
+              <Text style={styles.categoryIcon}>🧾</Text>
             </View>
             <Text style={styles.categoryTitle}>Medical Receipts</Text>
+            <Text style={styles.categorySubtitle}>View your Medical receipts</Text>
+            <View style={styles.categoryArrow}>
+              <Text style={styles.arrowText}>→</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.categoryCard, styles.medicinesCard]}
+            onPress={handleMedicines}
+            activeOpacity={0.8}
+          >
+            <View style={styles.categoryIconContainer}>
+              <Text style={styles.categoryIcon}>💊</Text>
+            </View>
+            <Text style={styles.categoryTitle}>Medicines</Text>
             <Text style={styles.categorySubtitle}>Track medicine & health</Text>
             <View style={styles.categoryArrow}>
               <Text style={styles.arrowText}>→</Text>
@@ -577,6 +568,10 @@ const styles = StyleSheet.create({
     borderLeftColor: '#10b981',
   },
   medicalReceiptsCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: 'orange',
+  },
+  medicinesCard: {
     borderLeftWidth: 4,
     borderLeftColor: '#8b5cf6',
     marginBottom: 83,

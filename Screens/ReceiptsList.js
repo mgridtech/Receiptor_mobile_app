@@ -9,8 +9,9 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import Footer from './FooterH';
-import { getReceipts, fetchCategories } from '../Services/Services';
+import { getReceipts, fetchCategories,deleteReceipt } from '../Services/Services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { extractUserIdFromToken } from './ExtractUserId';
 
 const ReceiptsList = ({ navigation }) => {
   const [receipts, setReceipts] = useState([]);
@@ -23,37 +24,32 @@ const ReceiptsList = ({ navigation }) => {
   const [receiptToDelete, setReceiptToDelete] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
-  const extractUserIdFromToken = (token) => {
-    try {
-      const parts = token.split('.');
-      if (parts.length !== 3) {
-        throw new Error('Invalid token format');
-      }
-
-      const payload = parts[1];
-      const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
-      const decodedPayload = atob(paddedPayload);
-      const parsedPayload = JSON.parse(decodedPayload);
-
-      console.log('Extracted token payload:', parsedPayload);
-      return parsedPayload.userId;
-    } catch (error) {
-      console.error('Error extracting userId from token:', error);
-      return null;
-    }
-  };
-
   const handleDeletePress = (receipt) => {
     setReceiptToDelete(receipt);
     setShowDeleteModal(true);
   };
 
-  const handleDeleteConfirm = () => {
-    setShowDeleteModal(false);
-    setShowSuccessMessage(true);
-    setTimeout(() => {
-      setShowSuccessMessage(false);
-    }, 2000);
+const handleDeleteConfirm = async () => {
+    try {
+      setShowDeleteModal(false);
+
+      const response = await deleteReceipt(receiptToDelete.id);
+
+      if (response.success) {
+        setReceipts(receipts.filter(receipt => receipt.id !== receiptToDelete.id));
+        setShowSuccessMessage(true);
+        setTimeout(() => {
+          setShowSuccessMessage(false);
+        }, 2000);
+      } else {
+        setError(response.error || 'Failed to delete receipt');
+      }
+    } catch (err) {
+      console.error('Error deleting receipt:', err);
+      setError('Failed to delete receipt');
+    }
+
+    setReceiptToDelete(null);
   };
 
   const handleDeleteCancel = () => {
@@ -113,7 +109,7 @@ const ReceiptsList = ({ navigation }) => {
 
         console.log('Using numeric userId:', userId);
 
-        const response = await getReceipts(userId, userToken);
+        const response = await getReceipts(userToken);
 
         if (response.success) {
 
@@ -123,7 +119,7 @@ const ReceiptsList = ({ navigation }) => {
             return;
           }
           const nonMedicalReceipts = response.data.filter(receipt =>
-            !receipt.category || receipt.category.toLowerCase() !== 'medical'
+            !receipt.category || receipt.category.toLowerCase() !== 'medicine'
           );
 
           if (nonMedicalReceipts.length === 0) {

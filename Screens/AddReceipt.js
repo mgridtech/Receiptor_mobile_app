@@ -18,6 +18,8 @@ import DocumentPicker from 'react-native-document-picker';
 import Footer from './FooterH';
 import AddForm from './AddForm';
 import { baseURL } from '../Services/Services';
+import MedicalAddForm from './MedicalAddForm';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AddReceipt = ({ navigation }) => {
     const [selectedFiles, setSelectedFiles] = useState([]);
@@ -33,6 +35,8 @@ const AddReceipt = ({ navigation }) => {
     const [showAddForm, setShowAddForm] = useState(false);
     const [isProcessingOCR, setIsProcessingOCR] = useState(false);
     const [ocrData, setOcrData] = useState(null);
+    const [selectedCategory, setSelectedCategory] = useState(null);
+
 
     const requestCameraPermission = async () => {
         if (Platform.OS === 'android') {
@@ -65,18 +69,22 @@ const AddReceipt = ({ navigation }) => {
             const formData = new FormData();
             formData.append('receipt', {
                 uri: imageUri,
-                type: 'image/jpeg',
+                type: 'image/jpeg/png',
                 name: 'receipt.jpg',
             });
             const apiUrl = `${baseURL}/api/ocr`;
 
             console.log('Making request to:', apiUrl);
 
+            const token = await AsyncStorage.getItem('userToken');
+            console.log('Using token:', token);
+
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 body: formData,
                 headers: {
                     'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 timeout: 30000,
             });
@@ -290,6 +298,43 @@ const AddReceipt = ({ navigation }) => {
     };
 
     const handleBackPress = () => {
+        if (showAddForm) {
+            setShowAddForm(false);
+            setSelectedFiles([]);
+            setSelectedCategory(null);
+            setCombinedOcrData({
+                vendorName: '',
+                amount: '',
+                dateReceived: '',
+                expiryDate: '',
+                groupName: '',
+            });
+            setOcrData(null);
+            return;
+        }
+
+        // if (showUploadOptions) {
+        //     setShowUploadOptions(false);
+        //     return;
+        // }
+
+        // if (selectedFiles.length > 0 && selectedCategory) {
+        //     setSelectedFiles([]);
+        //     setCombinedOcrData({
+        //         vendorName: '',
+        //         amount: '',
+        //         dateReceived: '',
+        //         expiryDate: '',
+        //         groupName: '',
+        //     });
+        //     setOcrData(null);
+        //     return;
+        // }
+
+        // if (selectedCategory) {
+        //     setSelectedCategory(null);
+        //     return;
+        // }
         navigation.goBack();
     };
 
@@ -332,7 +377,6 @@ const AddReceipt = ({ navigation }) => {
 
                 await callOCRAPI(asset.uri);
 
-                // Check for missing fields after OCR processing
                 setTimeout(() => {
                     checkMissingFieldsAndPrompt();
                 }, 1000);
@@ -372,7 +416,6 @@ const AddReceipt = ({ navigation }) => {
 
                 await callOCRAPI(asset.uri);
 
-                // Check for missing fields after OCR processing
                 setTimeout(() => {
                     checkMissingFieldsAndPrompt();
                 }, 1000);
@@ -407,7 +450,6 @@ const AddReceipt = ({ navigation }) => {
             if (result.type?.includes('image')) {
                 await callOCRAPI(result.uri);
 
-                // Check for missing fields after OCR processing
                 setTimeout(() => {
                     checkMissingFieldsAndPrompt();
                 }, 1000);
@@ -531,7 +573,7 @@ const AddReceipt = ({ navigation }) => {
                             ←
                         </Text>
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Add Receipt</Text>
+                    <Text style={styles.headerTitle}>Add Receipt / Medicine</Text>
                 </View>
                 {/* Inverted U Shape Bottom */}
                 <View style={styles.invertedUBottom} />
@@ -548,80 +590,183 @@ const AddReceipt = ({ navigation }) => {
             {/* Form Content */}
             <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
                 <View style={styles.formContainer}>
-                    {/* File Upload Section */}
-                    <View style={styles.formSection}>
-                        <Text style={styles.sectionLabel}>Receipt Attachment</Text>
+                    {/* Initial Category Selection */}
+                    {!showAddForm && selectedFiles.length === 0 && !showUploadOptions && !selectedCategory && (
+                        <View style={styles.formSection}>
+                            <Text style={styles.sectionLabel}>Select Category</Text>
 
-                        {selectedFiles.length === 0 ? (
                             <TouchableOpacity
-                                style={styles.uploadButton}
+                                style={styles.categoryButton}
+                                onPress={() => setSelectedCategory('receipt')}
+                            >
+                                <Text style={styles.categoryButtonIcon}>🧾</Text>
+                                <Text style={styles.categoryButtonText}>Receipt</Text>
+                                <Text style={styles.categoryButtonSubtext}>General receipts and bills</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.categoryButton}
+                                onPress={() => setSelectedCategory('medicine')}
+                            >
+                                <Text style={styles.categoryButtonIcon}>💊</Text>
+                                <Text style={styles.categoryButtonText}>Medicine</Text>
+                                <Text style={styles.categoryButtonSubtext}>Medicines</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {selectedCategory && !showAddForm && selectedFiles.length === 0 && !showUploadOptions && (
+                        <View style={styles.formSection}>
+                            <Text style={styles.sectionLabel}>Selected Category</Text>
+
+                            <View style={styles.categoryButton}>
+                                <Text style={styles.categoryButtonIcon}>
+                                    {selectedCategory === 'receipt' ? '🧾' : '💊'}
+                                </Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.categoryButtonText}>
+                                        {selectedCategory === 'receipt' ? 'Receipt' : 'Medicine'}
+                                    </Text>
+                                    <Text style={styles.categoryButtonSubtext}>
+                                        {selectedCategory === 'receipt' ? 'General receipts and bills' : 'Medicines'}
+                                    </Text>
+                                </View>
+                            </View>
+                        </View>
+                    )}
+                    {/* Entry Method Selection */}
+                    {selectedCategory && !showAddForm && selectedFiles.length === 0 && !showUploadOptions && (
+                        <View style={styles.formSection}>
+                            <Text style={styles.sectionLabel}>
+                                How would you like to add your {selectedCategory}?
+                            </Text>
+
+                            <TouchableOpacity
+                                style={styles.methodButton}
                                 onPress={() => setShowUploadOptions(true)}
                             >
-                                <Text style={styles.uploadIcon}>📎</Text>
-                                <Text style={styles.uploadButtonText}>Pick an Upload Option</Text>
-                                <Text style={styles.uploadButtonSubtext}>Camera • Gallery • Document</Text>
+                                <Text style={styles.methodButtonIcon}>📸</Text>
+                                <Text style={styles.methodButtonText}>Upload File</Text>
+                                <Text style={styles.methodButtonSubtext}>Take photo or upload document</Text>
                             </TouchableOpacity>
-                        ) : (
-                            <View>
-                                {selectedFiles.map((file, index) => (
-                                    <View key={index} style={styles.selectedFileCard}>
-                                        <View style={styles.selectedFileInfo}>
-                                            {file.uri && (file.type === 'camera' || file.type === 'gallery') ? (
-                                                <Image source={{ uri: file.uri }} style={styles.selectedFilePreview} />
-                                            ) : (
-                                                <Text style={styles.selectedFileIcon}>{file.icon}</Text>
-                                            )}
-                                            <View style={styles.selectedFileDetails}>
-                                                <Text style={styles.selectedFileName}>{file.name}</Text>
-                                                <Text style={styles.selectedFileType}>
-                                                    {file.fileSize ? formatFileSize(file.fileSize) : 'Unknown size'}
-                                                </Text>
-                                                <Text style={styles.selectedFileTimestamp}>Added: {file.timestamp}</Text>
-                                            </View>
-                                        </View>
-                                        <TouchableOpacity
-                                            style={styles.removeFileButton}
-                                            onPress={() => removeSelectedFile(index)}
-                                        >
-                                            <Text style={styles.removeFileText}>✕</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                ))}
+
+                            <TouchableOpacity
+                                style={styles.methodButton}
+                                onPress={() => {
+                                    if (selectedCategory === 'receipt') {
+                                        setShowAddForm(true);
+                                    } else if (selectedCategory === 'medicine') {
+                                        // Navigate to AddMedicine page
+                                        navigation.navigate('AddMedicine');
+                                    }
+                                }}
+                            >
+                                <Text style={styles.methodButtonIcon}>✍️</Text>
+                                <Text style={styles.methodButtonText}>Manual Entry</Text>
+                                <Text style={styles.methodButtonSubtext}>Enter details manually</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.backToSelectionButton}
+                                onPress={() => setSelectedCategory(null)}
+                            >
+                                <Text style={styles.backToSelectionButtonText}>← Back to Category Selection</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {/* File Upload Section */}
+                    {selectedCategory && (selectedFiles.length > 0 || showUploadOptions) && (
+                        <View style={styles.formSection}>
+                            <Text style={styles.sectionLabel}>
+                                {selectedCategory === 'receipt' ? 'Receipt' : 'Medicine'} Attachment
+                            </Text>
+
+                            {selectedFiles.length === 0 ? (
                                 <TouchableOpacity
-                                    style={styles.addMoreButton}
+                                    style={styles.uploadButton}
                                     onPress={() => setShowUploadOptions(true)}
                                 >
-                                    <Text style={styles.addMoreButtonText}>+ Add Another Image</Text>
+                                    <Text style={styles.uploadIcon}>📎</Text>
+                                    <Text style={styles.uploadButtonText}>Pick an Upload Option</Text>
+                                    <Text style={styles.uploadButtonSubtext}>Camera • Gallery • Document</Text>
                                 </TouchableOpacity>
-                            </View>
-                        )}
+                            ) : (
+                                <View>
+                                    {selectedFiles.map((file, index) => (
+                                        <View key={index} style={styles.selectedFileCard}>
+                                            <View style={styles.selectedFileInfo}>
+                                                {file.uri && (file.type === 'camera' || file.type === 'gallery') ? (
+                                                    <Image source={{ uri: file.uri }} style={styles.selectedFilePreview} />
+                                                ) : (
+                                                    <Text style={styles.selectedFileIcon}>{file.icon}</Text>
+                                                )}
+                                                <View style={styles.selectedFileDetails}>
+                                                    <Text style={styles.selectedFileName}>{file.name}</Text>
+                                                    <Text style={styles.selectedFileType}>
+                                                        {file.fileSize ? formatFileSize(file.fileSize) : 'Unknown size'}
+                                                    </Text>
+                                                    <Text style={styles.selectedFileTimestamp}>Added: {file.timestamp}</Text>
+                                                </View>
+                                            </View>
+                                            <TouchableOpacity
+                                                style={styles.removeFileButton}
+                                                onPress={() => removeSelectedFile(index)}
+                                            >
+                                                <Text style={styles.removeFileText}>✕</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))}
+                                    <TouchableOpacity
+                                        style={styles.addMoreButton}
+                                        onPress={() => setShowUploadOptions(true)}
+                                    >
+                                        <Text style={styles.addMoreButtonText}>+ Add Another Image</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                        </View>
+                    )}
 
-                    </View>
-
-                    {/* Add Receipt Button */}
-                    {!showAddForm ? (
+                    {/* Add Receipt/Medicine Button */}
+                    {selectedCategory && selectedFiles.length > 0 && !showAddForm && (
                         <TouchableOpacity
                             style={[
                                 styles.addReceiptButton,
-                                (selectedFiles.length === 0 || isProcessingOCR) && styles.addReceiptButtonDisabled
+                                isProcessingOCR && styles.addReceiptButtonDisabled
                             ]}
                             onPress={handleAddReceipt}
-                            disabled={selectedFiles.length === 0 || isProcessingOCR}
+                            disabled={isProcessingOCR}
                         >
                             <Text style={styles.addReceiptButtonIcon}>✓</Text>
-                            <Text style={styles.addReceiptButtonText}>Add Receipt</Text>
+                            <Text style={styles.addReceiptButtonText}>
+                                Add {selectedCategory === 'receipt' ? 'Receipt' : 'Medicine'}
+                            </Text>
                         </TouchableOpacity>
-                    ) : (
+                    )}
+
+                    {/* Add Form */}
+                    {showAddForm && selectedCategory === 'receipt' && (
                         <AddForm
                             navigation={navigation}
-                            ocrData={combinedOcrData} // Pass combined data instead of ocrData
-                            selectedFile={selectedFiles} // Pass all files instead of single file
+                            ocrData={combinedOcrData}
+                            selectedFile={selectedFiles}
                             onSave={(data) => {
                                 setShowAddForm(false);
                             }}
                         />
                     )}
 
+                    {showAddForm && selectedCategory === 'medicine' && (
+                        <MedicalAddForm
+                            navigation={navigation}
+                            ocrData={combinedOcrData}
+                            selectedFile={selectedFiles}
+                            onSave={(data) => {
+                                setShowAddForm(false);
+                            }}
+                        />
+                    )}
                 </View>
             </ScrollView>
 
@@ -1049,6 +1194,86 @@ const styles = StyleSheet.create({
         borderStyle: 'dashed',
     },
     addMoreButtonText: {
+        color: '#6B7280',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    categoryButton: {
+        backgroundColor: 'white',
+        borderRadius: 12,
+        padding: 20,
+        marginBottom: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 1,
+        },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+    },
+    categoryButtonIcon: {
+        fontSize: 32,
+        marginRight: 16,
+    },
+    categoryButtonText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#333',
+        flex: 1,
+    },
+    categoryButtonSubtext: {
+        fontSize: 14,
+        color: '#666',
+        marginTop: 4,
+    },
+    methodButton: {
+        backgroundColor: 'white',
+        borderRadius: 12,
+        padding: 20,
+        marginBottom: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 1,
+        },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+    },
+    methodButtonIcon: {
+        fontSize: 28,
+        marginRight: 16,
+    },
+    methodButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#333',
+        flex: 1,
+    },
+    methodButtonSubtext: {
+        fontSize: 14,
+        color: '#666',
+        marginTop: 4,
+    },
+    backToSelectionButton: {
+        backgroundColor: '#F3F4F6',
+        borderRadius: 8,
+        padding: 12,
+        marginTop: 8,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    backToSelectionButtonText: {
         color: '#6B7280',
         fontSize: 14,
         fontWeight: '500',
