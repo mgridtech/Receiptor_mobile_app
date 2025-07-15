@@ -16,6 +16,7 @@ import ViewFullImage from './ViewFullImage';
 import { getReceiptDetails, updateReminder } from '../Services/Services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { extractUserIdFromToken } from './ExtractUserId';
+import Toast from 'react-native-toast-message';
 
 const IOSToggle = ({ value, onValueChange, activeColor = '#9A6BD4', inactiveColor = '#E5E5EA' }) => {
     const [animatedValue] = useState(new Animated.Value(value ? 1 : 0));
@@ -74,14 +75,28 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
                 const userToken = await AsyncStorage.getItem('userToken');
 
                 if (!userToken) {
-                    Alert.alert('Error', 'Authentication required. Please login again.');
+                    Toast.show({
+                        type: 'error',
+                        text1: 'Error',
+                        text2: 'Authentication required. Please login again.',
+                        position: 'top',
+                        topOffset: 130,
+                        visibilityTime: 3000,
+                    });
                     return;
                 }
 
                 const userId = extractUserIdFromToken(userToken);
 
                 if (!userId) {
-                    Alert.alert('Error', 'Invalid authentication token. Please login again.');
+                    Toast.show({
+                        type: 'error',
+                        text1: 'Error',
+                        text2: 'Invalid authentication token. Please login again.',
+                        position: 'top',
+                        topOffset: 130,
+                        visibilityTime: 3000,
+                    });
                     return;
                 }
 
@@ -109,11 +124,25 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
                     setTempReceiptData(transformedData);
                     setIsAutoReminderEnabled(response.data.notify || false);
                 } else {
-                    Alert.alert('Error', response.error || 'Failed to fetch receipt details');
+                    Toast.show({
+                        type: 'error',
+                        text1: 'Error',
+                        text2: response.error || 'Failed to fetch receipt details',
+                        position: 'top',
+                        topOffset: 130,
+                        visibilityTime: 3000,
+                    });
                 }
             } catch (error) {
                 console.error('Error fetching receipt details:', error);
-                Alert.alert('Error', 'Failed to load receipt details');
+                Toast.show({
+                    type: 'error',
+                    text1: 'Error',
+                    text2: 'Failed to load receipt details',
+                    position: 'top',
+                    topOffset: 130,
+                    visibilityTime: 3000,
+                });
             }
         };
 
@@ -140,7 +169,14 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
     const handleSaveReceipt = () => {
         setReceiptData({ ...tempReceiptData });
         setEditModalVisible(false);
-        Alert.alert('Success', 'Receipt updated successfully!');
+        Toast.show({
+            type: 'success',
+            text1: 'Success',
+            text2: 'Receipt updated successfully!',
+            position: 'top',
+            topOffset: 130,
+            visibilityTime: 3000,
+        });
     };
 
     const handleCancelEdit = () => {
@@ -164,44 +200,34 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
 
             <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
                 <View style={styles.contentContainer}>
-                    <View style={styles.receiptImageContainer}>
-                        <View style={styles.receiptImageBox}>
-                            <TouchableOpacity onPress={() => setImageModalVisible(true)} activeOpacity={0.8}>
-                                {receiptData.receiptFileUrl ? (
+
+                    {receiptData.receiptFileUrl && (
+                        <View style={styles.receiptImageContainer}>
+                            <View style={styles.receiptImageBox}>
+                                <TouchableOpacity onPress={() => setImageModalVisible(true)} activeOpacity={0.8}>
                                     <Image
                                         source={getReceiptImage(receiptData.receiptFileUrl)}
                                         style={{ width: 340, height: 220, borderRadius: 10 }}
                                         resizeMode="cover"
                                     />
-                                ) : (
                                     <View style={{
-                                        width: 340,
-                                        height: 220,
-                                        borderRadius: 10,
-                                        backgroundColor: '#f0f0f0',
-                                        justifyContent: 'center',
-                                        alignItems: 'center'
+                                        position: 'absolute',
+                                        bottom: 0,
+                                        left: 0,
+                                        right: 0,
+                                        backgroundColor: 'rgba(124,58,237,0.7)',
+                                        paddingVertical: 6,
+                                        borderBottomLeftRadius: 10,
+                                        borderBottomRightRadius: 10,
                                     }}>
-                                        <Text style={{ color: '#999', fontSize: 16 }}>No image available</Text>
+                                        <Text style={{ color: 'white', textAlign: 'center', fontWeight: '600' }}>
+                                            Tap image to view or download
+                                        </Text>
                                     </View>
-                                )}
-                                <View style={{
-                                    position: 'absolute',
-                                    bottom: 0,
-                                    left: 0,
-                                    right: 0,
-                                    backgroundColor: 'rgba(124,58,237,0.7)',
-                                    paddingVertical: 6,
-                                    borderBottomLeftRadius: 10,
-                                    borderBottomRightRadius: 10,
-                                }}>
-                                    <Text style={{ color: 'white', textAlign: 'center', fontWeight: '600' }}>
-                                        Tap image to view or download
-                                    </Text>
-                                </View>
-                            </TouchableOpacity>
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                    </View>
+                    )}
 
                     <View style={styles.detailsContainer}>
                         <View style={styles.detailItem}>
@@ -236,7 +262,14 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
                                     const userId = extractUserIdFromToken(userToken);
 
                                     if (!userId) {
-                                        Alert.alert('Error', 'Authentication error. Please login again.');
+                                        Toast.show({
+                                            type: 'error',
+                                            text1: 'Error',
+                                            text2: 'Authentication error. Please login again.',
+                                            position: 'top',
+                                            topOffset: 130,
+                                            visibilityTime: 3000,
+                                        });
                                         return;
                                     }
 
@@ -246,10 +279,24 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
                                             if (response.success) {
                                                 setIsAutoReminderEnabled(true);
                                             } else {
-                                                Alert.alert('Error', response.error || 'Failed to enable reminder');
+                                                Toast.show({
+                                                    type: 'error',
+                                                    text1: 'Error',
+                                                    text2: response.error || 'Failed to enable reminder',
+                                                    position: 'top',
+                                                    topOffset: 130,
+                                                    visibilityTime: 3000,
+                                                });
                                             }
                                         } catch (error) {
-                                            Alert.alert('Error', 'Failed to enable reminder');
+                                            Toast.show({
+                                                type: 'error',
+                                                text1: 'Error',
+                                                text2: 'Failed to enable reminder',
+                                                position: 'top',
+                                                topOffset: 130,
+                                                visibilityTime: 3000,
+                                            });
                                         }
                                     } else {
                                         Alert.alert(
@@ -265,10 +312,24 @@ const ReceiptDetailsScreen = ({ navigation, route }) => {
                                                             if (response.success) {
                                                                 setIsAutoReminderEnabled(false);
                                                             } else {
-                                                                Alert.alert('Error', response.error || 'Failed to disable reminder');
+                                                                Toast.show({
+                                                                    type: 'error',
+                                                                    text1: 'Error',
+                                                                    text2: response.error || 'Failed to disable reminder',
+                                                                    position: 'top',
+                                                                    topOffset: 130,
+                                                                    visibilityTime: 3000,
+                                                                });
                                                             }
                                                         } catch (error) {
-                                                            Alert.alert('Error', 'Failed to disable reminder');
+                                                            Toast.show({
+                                                                type: 'error',
+                                                                text1: 'Error',
+                                                                text2: 'Failed to disable reminder',
+                                                                position: 'top',
+                                                                topOffset: 130,
+                                                                visibilityTime: 3000,
+                                                            });
                                                         }
                                                     }
                                                 },

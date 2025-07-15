@@ -17,9 +17,10 @@ import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DocumentPicker from 'react-native-document-picker';
 import Footer from './FooterH';
 import AddForm from './AddForm';
-import { baseURL } from '../Services/Services';
+// import { baseURL } from '../Services/Services';
 import MedicalAddForm from './MedicalAddForm';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Toast from 'react-native-toast-message';
 
 const AddReceipt = ({ navigation }) => {
     const [selectedFiles, setSelectedFiles] = useState([]);
@@ -29,6 +30,8 @@ const AddReceipt = ({ navigation }) => {
         dateReceived: '',
         expiryDate: '',
         groupName: '',
+        medicineName: '',
+        validUntil: '',
     });
 
     const [showUploadOptions, setShowUploadOptions] = useState(false);
@@ -60,7 +63,6 @@ const AddReceipt = ({ navigation }) => {
         return true;
     };
 
-    // OCR API call function
     const callOCRAPI = async (imageUri) => {
         setIsProcessingOCR(true);
         try {
@@ -69,9 +71,11 @@ const AddReceipt = ({ navigation }) => {
             const formData = new FormData();
             formData.append('receipt', {
                 uri: imageUri,
-                type: 'image/jpeg/png',
+                type: 'image/jpeg',
                 name: 'receipt.jpg',
             });
+
+            const baseURL = 'https://receiptor-backend.onrender.com';
             const apiUrl = `${baseURL}/api/ocr`;
 
             console.log('Making request to:', apiUrl);
@@ -79,15 +83,21 @@ const AddReceipt = ({ navigation }) => {
             const token = await AsyncStorage.getItem('userToken');
             console.log('Using token:', token);
 
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 body: formData,
                 headers: {
+                    'Content-Type': 'multipart/form-data',
                     'Accept': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                timeout: 30000,
+                signal: controller.signal,
             });
+
+            clearTimeout(timeoutId);
 
             console.log('Response status:', response.status);
             console.log('Response headers:', response.headers);
@@ -118,17 +128,22 @@ const AddReceipt = ({ navigation }) => {
 
             let errorMessage = 'Could not extract data from image. You can still fill the form manually.';
 
-            if (error.message.includes('Network request failed')) {
-                errorMessage = 'Network connection failed. Please check your internet connection and server URL.';
+            if (error.name === 'AbortError') {
+                errorMessage = 'Request timed out. Please try again.';
+            } else if (error.message.includes('Network request failed')) {
+                errorMessage = 'Network connection failed. Please check your internet connection and try again.';
             } else if (error.message.includes('timeout')) {
                 errorMessage = 'Request timed out. Please try again.';
             }
 
-            Alert.alert(
-                'OCR Processing Failed',
-                errorMessage,
-                [{ text: 'OK', onPress: () => { } }]
-            );
+            Toast.show({
+                type: 'error',
+                text1: 'OCR Processing Failed',
+                text2: errorMessage,
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
             return null;
         } finally {
             setIsProcessingOCR(false);
@@ -342,7 +357,14 @@ const AddReceipt = ({ navigation }) => {
         const hasPermission = await requestCameraPermission();
 
         if (!hasPermission) {
-            Alert.alert('Permission Denied', 'Camera permission is required to take photos.');
+            Toast.show({
+                type: 'error',
+                text1: 'Permission Denied',
+                text2: 'Camera permission is required to take photos.',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
             return;
         }
 
@@ -359,7 +381,14 @@ const AddReceipt = ({ navigation }) => {
                 console.log('User cancelled camera');
             } else if (response.errorMessage) {
                 console.log('Camera Error: ', response.errorMessage);
-                Alert.alert('Error', 'Failed to open camera');
+                Toast.show({
+                    type: 'error',
+                    text1: 'Error',
+                    text2: 'Failed to open camera',
+                    position: 'top',
+                    topOffset: 130,
+                    visibilityTime: 3000,
+                });
             } else if (response.assets && response.assets[0]) {
                 const asset = response.assets[0];
                 const fileData = {
@@ -398,7 +427,14 @@ const AddReceipt = ({ navigation }) => {
                 console.log('User cancelled gallery');
             } else if (response.errorMessage) {
                 console.log('Gallery Error: ', response.errorMessage);
-                Alert.alert('Error', 'Failed to open gallery');
+                Toast.show({
+                    type: 'error',
+                    text1: 'Error',
+                    text2: 'Failed to open gallery',
+                    position: 'top',
+                    topOffset: 130,
+                    visibilityTime: 3000,
+                });
             } else if (response.assets && response.assets[0]) {
                 const asset = response.assets[0];
                 const fileData = {
@@ -459,7 +495,14 @@ const AddReceipt = ({ navigation }) => {
                 console.log('User cancelled document picker');
             } else {
                 console.log('Document Picker Error: ', err);
-                Alert.alert('Error', 'Failed to pick document');
+                Toast.show({
+                    type: 'error',
+                    text1: 'Error',
+                    text2: 'Failed to pick document',
+                    position: 'top',
+                    topOffset: 130,
+                    visibilityTime: 3000,
+                });
             }
         }
     };
@@ -498,7 +541,14 @@ const AddReceipt = ({ navigation }) => {
 
     const handleAddReceipt = () => {
         if (selectedFiles.length === 0) {
-            Alert.alert('Missing File', 'Please select at least one image or file to upload');
+            Toast.show({
+                type: 'error',
+                text1: 'Missing File',
+                text2: 'Please select at least one image or file to upload',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
             return;
         }
         setShowAddForm(true);
@@ -506,10 +556,8 @@ const AddReceipt = ({ navigation }) => {
 
     const removeSelectedFile = (indexToRemove = null) => {
         if (indexToRemove !== null) {
-            // Remove specific file
             setSelectedFiles(prev => prev.filter((_, index) => index !== indexToRemove));
         } else {
-            // Remove all files
             setSelectedFiles([]);
             setCombinedOcrData({
                 vendorName: '',
@@ -526,11 +574,18 @@ const AddReceipt = ({ navigation }) => {
     const checkMissingFieldsAndPrompt = () => {
         const missingFields = [];
 
-        if (!combinedOcrData.vendorName) missingFields.push('Vendor Name');
-        if (!combinedOcrData.amount) missingFields.push('Amount');
-        if (!combinedOcrData.dateReceived) missingFields.push('Date Received');
-        if (!combinedOcrData.expiryDate) missingFields.push('Expiry Date');
-        if (!combinedOcrData.groupName) missingFields.push('Category');
+        if (selectedCategory === 'receipt') {
+            // Fields for receipt
+            if (!combinedOcrData.vendorName) missingFields.push('Vendor Name');
+            if (!combinedOcrData.amount) missingFields.push('Amount');
+            if (!combinedOcrData.dateReceived) missingFields.push('Date Received');
+            if (!combinedOcrData.expiryDate) missingFields.push('Expiry Date');
+            if (!combinedOcrData.groupName) missingFields.push('Category');
+        } else if (selectedCategory === 'medicine') {
+            // Fields for medicine
+            if (!combinedOcrData.medicineName) missingFields.push('Medicine Name');
+            if (!combinedOcrData.validUntil) missingFields.push('Valid Until');
+        }
 
         if (missingFields.length > 0) {
             Alert.alert(
@@ -560,6 +615,8 @@ const AddReceipt = ({ navigation }) => {
             dateReceived: prevData.dateReceived || newOcrData.dateReceived || '',
             expiryDate: prevData.expiryDate || newOcrData.expiryDate || '',
             groupName: prevData.groupName || newOcrData.groupName || '',
+            medicineName: prevData.medicineName || newOcrData.medicineName || '',
+            validUntil: prevData.validUntil || newOcrData.validUntil || '',
         }));
     };
 
@@ -670,7 +727,7 @@ const AddReceipt = ({ navigation }) => {
                                 style={styles.backToSelectionButton}
                                 onPress={() => setSelectedCategory(null)}
                             >
-                                <Text style={styles.backToSelectionButtonText}>← Back to Category Selection</Text>
+                                <Text style={styles.backToSelectionButtonText}>Back to Category Selection</Text>
                             </TouchableOpacity>
                         </View>
                     )}

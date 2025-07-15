@@ -6,12 +6,13 @@ import {
   StyleSheet,
   ScrollView,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Footer from './FooterH';
 import { getReceipts, deleteReceipt } from '../Services/Services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { extractUserIdFromToken } from './ExtractUserId'; 
+import { extractUserIdFromToken } from './ExtractUserId';
 
 const MedicalReceipts = ({ navigation }) => {
   const [selectedDate, setSelectedDate] = useState(null);
@@ -24,68 +25,68 @@ const MedicalReceipts = ({ navigation }) => {
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
 
-  useEffect(() => {
-    const fetchMedicalReceipts = async () => {
-      try {
-        setLoading(true);
+  const fetchMedicalReceipts = async () => {
+    try {
+      setLoading(true);
 
-        const userToken = await AsyncStorage.getItem('userToken');
+      const userToken = await AsyncStorage.getItem('userToken');
 
-        if (!userToken) {
-          setError('Authentication required. Please login again.');
-          return;
-        }
-
-        const userId = extractUserIdFromToken(userToken);
-
-        if (!userId) {
-          setError('Invalid authentication token. Please login again.');
-          return;
-        }
-
-        console.log('Using numeric userId:', userId);
-
-        const response = await getReceipts(userToken);
-
-        if (response.success) {
-
-          if (response.data && response.data.message && response.data.message.includes("No receipts found")) {
-            setReceipts([]);
-            setError('no_receipts_found');
-            return;
-          }
-          const medicalReceipts = response.data.filter(receipt =>
-            receipt.category && receipt.category.toLowerCase() === 'medicine'
-          );
-
-          if (medicalReceipts.length === 0) {
-            setReceipts([]);
-            setError('no_medical_receipts');
-            return;
-          }
-
-          const transformedReceipts = medicalReceipts.map(receipt => ({
-            id: receipt.id,
-            vendorName: receipt.vendor,
-            dateReceived: formatDateForDisplay(receipt.purchaseDate),
-            groupName: receipt.category,
-            amount: `₹${receipt.amount}`,
-            icon: getMedicalIcon(receipt.vendor),
-            expiryDate: receipt.validUntil ? formatDateForDisplay(receipt.validUntil) : 'N/A',
-          }));
-
-          setReceipts(transformedReceipts);
-        } else {
-          setError(response.error || 'Failed to fetch receipts');
-        }
-      } catch (err) {
-        console.error('Error fetching medical receipts:', err);
-        setError('Failed to load medical receipts');
-      } finally {
-        setLoading(false);
+      if (!userToken) {
+        setError('Authentication required. Please login again.');
+        return;
       }
-    };
 
+      const userId = extractUserIdFromToken(userToken);
+
+      if (!userId) {
+        setError('Invalid authentication token. Please login again.');
+        return;
+      }
+
+      console.log('Using numeric userId:', userId);
+
+      const response = await getReceipts(userToken);
+
+      if (response.success) {
+
+        if (response.data && response.data.message && response.data.message.includes("No receipts found")) {
+          setReceipts([]);
+          setError('no_receipts_found');
+          return;
+        }
+        const medicalReceipts = response.data.filter(receipt =>
+          receipt.category && receipt.category.toLowerCase() === 'medicine'
+        );
+
+        if (medicalReceipts.length === 0) {
+          setReceipts([]);
+          setError('no_medical_receipts');
+          return;
+        }
+
+        const transformedReceipts = medicalReceipts.map(receipt => ({
+          id: receipt.id,
+          vendorName: receipt.vendor,
+          dateReceived: formatDateForDisplay(receipt.purchaseDate),
+          groupName: receipt.category,
+          amount: `₹${receipt.amount}`,
+          icon: getMedicalIcon(receipt.vendor),
+          expiryDate: receipt.validUntil ? formatDateForDisplay(receipt.validUntil) : 'N/A',
+        }));
+
+        setReceipts(transformedReceipts);
+      } else {
+        setError(response.error || 'Failed to fetch receipts');
+      }
+    } catch (err) {
+      console.error('Error fetching medical receipts:', err);
+      setError('Failed to load medical receipts');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchMedicalReceipts();
   }, []);
 
@@ -184,6 +185,13 @@ const MedicalReceipts = ({ navigation }) => {
             </Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Medical Receipts List</Text>
+          <TouchableOpacity
+            style={styles.refreshButton}
+            onPress={fetchMedicalReceipts}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.refreshButtonText}>🔄</Text>
+          </TouchableOpacity>
         </View>
         {/* Inverted U Shape Bottom */}
         <View style={styles.invertedUBottom} />
@@ -249,146 +257,152 @@ const MedicalReceipts = ({ navigation }) => {
       {/* Receipt List */}
       <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.receiptList}>
-          {loading ? (
-            <Text style={{ textAlign: 'center', color: '#7C3AED', marginTop: 40 }}>
-              Loading receipts...
-            </Text>
-          ) : error === 'no_receipts_found' ? (
-            <View style={styles.noReceiptsContainer}>
-              <View style={styles.noReceiptsIcon}>
-                <Text style={styles.noReceiptsEmoji}>📋</Text>
-              </View>
-              <Text style={styles.noReceiptsTitle}>No Receipts Found</Text>
-              <Text style={styles.noReceiptsSubtitle}>Please add a receipt to get started</Text>
-              <TouchableOpacity
-                style={styles.addReceiptButton}
-                onPress={() => navigation.navigate('AddReceipt')}
-              >
-                <Text style={styles.addReceiptButtonText}>+ Add Receipt</Text>
-              </TouchableOpacity>
-            </View>
-          ) : error === 'no_medical_receipts' ? (
-            <View style={styles.noReceiptsContainer}>
-              <View style={styles.noReceiptsIcon}>
-                <Text style={styles.noReceiptsEmoji}>💊</Text>
-              </View>
-              <Text style={styles.noReceiptsTitle}>No Medical Receipts Found</Text>
-              <Text style={styles.noReceiptsSubtitle}>Add medical receipts to track your healthcare expenses</Text>
-              <TouchableOpacity
-                style={styles.addReceiptButton}
-                onPress={() => navigation.navigate('AddReceipt')}
-              >
-                <Text style={styles.addReceiptButtonText}>+ Add Medical Receipt</Text>
-              </TouchableOpacity>
-            </View>
-          ) : error ? (
-            <Text style={{ textAlign: 'center', color: '#ff0000', marginTop: 40 }}>
-              {error}
-            </Text>
-          ) : filteredReceipts.length === 0 ? (
-            <Text style={{ textAlign: 'center', color: '#7C3AED', marginTop: 40 }}>
-              {selectedDate ? 'No receipts uploaded on the selected date' : 'No receipts found'}
-            </Text>
-          ) : (
-            filteredReceipts.map((receipt) => (
-              <TouchableOpacity
-                key={receipt.id}
-                style={styles.receiptCard}
-                onPress={() => handleReceiptPress(receipt)}
-              >
-                <View style={styles.receiptIcon}>
-                  <Text style={styles.iconText}>{receipt.icon}</Text>
-                </View>
-
-                <View style={styles.receiptContent}>
-                  <View style={styles.receiptContent}>
-                    {/* Status button positioned at top-right */}
-                    <View style={{
-                      position: 'absolute',
-                      top: -2,
-                      right: -9,
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      borderRadius: 12,
-                      backgroundColor: getReceiptStatus(receipt.expiryDate).color,
-                      zIndex: 2,
-                    }}>
-                      <Text style={{
-                        color: 'white',
-                        fontSize: 10,
-                        fontWeight: '600',
-                      }}>
-                        {getReceiptStatus(receipt.expiryDate).status}
-                      </Text>
-                    </View>
-                    <View style={styles.receiptInfo}>
-                      <Text style={styles.storeName}>{receipt.vendorName}</Text>
-                      <Text style={styles.receiptDate}>Date:  {receipt.dateReceived}</Text>
-                      <Text style={{ fontSize: 12, color: '#666' }}>Expiry: {receipt.expiryDate}</Text>
-                    </View>
-
-                    <View style={styles.receiptAmount}>
-                      <TouchableOpacity
-                        style={{ alignSelf: 'flex-end', marginBottom: 7, marginTop: 27 }}
-                        onPress={() => handleDeletePress(receipt)}
-                        hitSlop={{ top: 10, bottom: 13, left: 10, right: 10 }}
-                      >
-                        <View style={{
-                          width: 16,
-                          height: 16,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}>
-                          <View style={{
-                            width: 12,
-                            height: 2,
-                            backgroundColor: '#ff4444',
-                            marginBottom: 1,
-                            borderRadius: 1,
-                          }} />
-                          <View style={{
-                            width: 10,
-                            height: 12,
-                            backgroundColor: '#ff4444',
-                            borderRadius: 2,
-                            position: 'relative',
-                          }}>
-                            <View style={{
-                              position: 'absolute',
-                              top: 2,
-                              left: 2,
-                              width: 1,
-                              height: 6,
-                              backgroundColor: 'white',
-                            }} />
-                            <View style={{
-                              position: 'absolute',
-                              top: 2,
-                              left: 4.5,
-                              width: 1,
-                              height: 6,
-                              backgroundColor: 'white',
-                            }} />
-                            <View style={{
-                              position: 'absolute',
-                              top: 2,
-                              right: 2,
-                              width: 1,
-                              height: 6,
-                              backgroundColor: 'white',
-                            }} />
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                      <Text style={styles.amountText}>{receipt.amount}</Text>
-                    </View>
+          {!loading && (
+            <>
+              {error === 'no_receipts_found' ? (
+                <View style={styles.noReceiptsContainer}>
+                  <View style={styles.noReceiptsIcon}>
+                    <Text style={styles.noReceiptsEmoji}>📋</Text>
                   </View>
+                  <Text style={styles.noReceiptsTitle}>No Receipts Found</Text>
+                  <Text style={styles.noReceiptsSubtitle}>Please add a receipt to get started</Text>
+                  <TouchableOpacity
+                    style={styles.addReceiptButton}
+                    onPress={() => navigation.navigate('AddReceipt')}
+                  >
+                    <Text style={styles.addReceiptButtonText}>+ Add Receipt</Text>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-            ))
+              ) : error === 'no_medical_receipts' ? (
+                <View style={styles.noReceiptsContainer}>
+                  <View style={styles.noReceiptsIcon}>
+                    <Text style={styles.noReceiptsEmoji}>💊</Text>
+                  </View>
+                  <Text style={styles.noReceiptsTitle}>No Medical Receipts Found</Text>
+                  <Text style={styles.noReceiptsSubtitle}>Add medical receipts to track your healthcare expenses</Text>
+                  <TouchableOpacity
+                    style={styles.addReceiptButton}
+                    onPress={() => navigation.navigate('AddReceipt')}
+                  >
+                    <Text style={styles.addReceiptButtonText}>+ Add Medical Receipt</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : error ? (
+                <Text style={{ textAlign: 'center', color: '#ff0000', marginTop: 40 }}>
+                  {error}
+                </Text>
+              ) : filteredReceipts.length === 0 ? (
+                <Text style={{ textAlign: 'center', color: '#7C3AED', marginTop: 40 }}>
+                  {selectedDate ? 'No receipts uploaded on the selected date' : 'No receipts found'}
+                </Text>
+              ) : (
+                filteredReceipts.map((receipt) => (
+                  <TouchableOpacity
+                    key={receipt.id}
+                    style={styles.receiptCard}
+                    onPress={() => handleReceiptPress(receipt)}
+                  >
+                    <View style={styles.receiptIcon}>
+                      <Text style={styles.iconText}>{receipt.icon}</Text>
+                    </View>
+
+                    <View style={styles.receiptContent}>
+                      <View style={styles.receiptContent}>
+                        {/* Status button positioned at top-right */}
+                        <View style={{
+                          position: 'absolute',
+                          top: -2,
+                          right: -9,
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                          borderRadius: 12,
+                          backgroundColor: getReceiptStatus(receipt.expiryDate).color,
+                          zIndex: 2,
+                        }}>
+                          <Text style={{
+                            color: 'white',
+                            fontSize: 10,
+                            fontWeight: '600',
+                          }}>
+                            {getReceiptStatus(receipt.expiryDate).status}
+                          </Text>
+                        </View>
+                        <View style={styles.receiptInfo}>
+                          <Text style={styles.storeName}>{receipt.vendorName}</Text>
+                          <Text style={styles.receiptDate}>Date:  {receipt.dateReceived}</Text>
+                          <Text style={{ fontSize: 12, color: '#666' }}>Expiry: {receipt.expiryDate}</Text>
+                        </View>
+
+                        <View style={styles.receiptAmount}>
+                          <TouchableOpacity
+                            style={{ alignSelf: 'flex-end', marginBottom: 7, marginTop: 27 }}
+                            onPress={() => handleDeletePress(receipt)}
+                            hitSlop={{ top: 10, bottom: 13, left: 10, right: 10 }}
+                          >
+                            <View style={{
+                              width: 16,
+                              height: 16,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}>
+                              <View style={{
+                                width: 12,
+                                height: 2,
+                                backgroundColor: '#ff4444',
+                                marginBottom: 1,
+                                borderRadius: 1,
+                              }} />
+                              <View style={{
+                                width: 10,
+                                height: 12,
+                                backgroundColor: '#ff4444',
+                                borderRadius: 2,
+                                position: 'relative',
+                              }}>
+                                <View style={{
+                                  position: 'absolute',
+                                  top: 2,
+                                  left: 2,
+                                  width: 1,
+                                  height: 6,
+                                  backgroundColor: 'white',
+                                }} />
+                                <View style={{
+                                  position: 'absolute',
+                                  top: 2,
+                                  left: 4.5,
+                                  width: 1,
+                                  height: 6,
+                                  backgroundColor: 'white',
+                                }} />
+                                <View style={{
+                                  position: 'absolute',
+                                  top: 2,
+                                  right: 2,
+                                  width: 1,
+                                  height: 6,
+                                  backgroundColor: 'white',
+                                }} />
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                          <Text style={styles.amountText}>{receipt.amount}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </>
           )}
         </View>
       </ScrollView>
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#7C3AED" />
+          <Text style={styles.loadingText}>Loading receipts...</Text>
+        </View>
+      )}
 
       {/* Footer Component */}
       <Footer />
@@ -665,6 +679,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  loadingOverlay: {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  justifyContent: 'center',
+  alignItems: 'center',
+  // backgroundColor: 'rgba(255,255,255,0.6)', 
+  zIndex: 999,
+},
+loadingText: {
+  marginTop: 10,
+  fontSize: 16,
+  fontWeight: '500',
+  color: '#333',
+},
+
 });
 
 export default MedicalReceipts;

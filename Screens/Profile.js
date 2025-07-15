@@ -12,7 +12,9 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Footer from './FooterH';
 import EditProfile from './EditProfile';
-import { getUserProfile, testTokenFormat, testServerConnection,logout } from '../Services/Services';
+import { getUserProfile, testTokenFormat, testServerConnection, logout } from '../Services/Services';
+import Toast from 'react-native-toast-message';
+
 const ProfileScreen = ({ navigation }) => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [profileData, setProfileData] = useState({
@@ -42,7 +44,14 @@ const ProfileScreen = ({ navigation }) => {
         const retryToken = await AsyncStorage.getItem('userToken');
 
         if (!retryToken) {
-          Alert.alert('Error', 'No authentication token found. Please login again.');
+          Toast.show({
+            type: 'error',
+            text1: 'Error',
+            text2: 'No authentication token found. Please login again.',
+            position: 'top',
+            topOffset: 130,
+            visibilityTime: 3500,
+          });
           navigation.replace('Login');
           return;
         } else {
@@ -63,14 +72,28 @@ const ProfileScreen = ({ navigation }) => {
           tier: result.data.tier || '',
         });
       } else {
-        setError(result.error);
-        Alert.alert('Error', `Failed to load profile: ${result.error}`);
-      }
-    } catch (error) {
-      console.error('Error in fetchUserProfile:', error);
-      setError(error.message);
-      Alert.alert('Error', 'Failed to load profile. Please try again.');
-    } finally {
+    setError(result.error);
+    Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: `Failed to load profile: ${result.error}`,
+        position: 'top',
+        topOffset: 130,
+        visibilityTime: 3000,
+    });
+}
+} catch (error) {
+    console.error('Error in fetchUserProfile:', error);
+    setError(error.message);
+    Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to load profile. Please try again.',
+        position: 'top',
+        topOffset: 130,
+        visibilityTime: 3000,
+    });
+}finally {
       setLoading(false);
     }
   };
@@ -87,21 +110,21 @@ const ProfileScreen = ({ navigation }) => {
           onPress: async () => {
             try {
               console.log('User logging out...');
-              
+
               const logoutResult = await logout();
-              
+
               if (logoutResult.success) {
                 console.log('Logout successful:', logoutResult.data);
               } else {
                 console.error('Logout failed:', logoutResult.error);
               }
-              
+
               await AsyncStorage.removeItem('userToken');
               await AsyncStorage.removeItem('userEmail');
               await AsyncStorage.removeItem('userName');
               await AsyncStorage.removeItem('firebaseUserId');
               await AsyncStorage.removeItem('storedFcmToken');
-              
+
               console.log('User logged out and AsyncStorage cleared');
               navigation.replace('Login');
             } catch (error) {
@@ -114,123 +137,104 @@ const ProfileScreen = ({ navigation }) => {
     );
   };
 
-  if (loading) {
-    return (
-      <View style={[styles.mainContainer, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color="#7C3AED" />
-        <Text style={styles.loadingText}>Loading profile...</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.mainContainer}>
       {/* Sticky Header */}
       <View style={styles.headerWrapper}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Text style={{ color: 'white', fontSize: 30, fontWeight: 'bold', marginTop: -6 }}>
-              ←
-            </Text>
+            <Text style={{ color: 'white', fontSize: 30, fontWeight: 'bold', marginTop: -6 }}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Profile</Text>
-          <TouchableOpacity
-            style={styles.refreshButton}
-            onPress={fetchUserProfile}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={styles.refreshButton} onPress={fetchUserProfile} activeOpacity={0.7}>
             <Text style={styles.refreshButtonText}>🔄</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.invertedUBottom} />
       </View>
 
-      {/* Scrollable Content */}
-      <ScrollView
-        style={styles.container}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Profile Information Card */}
-        <View style={styles.profileInfoCard}>
-          <Text style={styles.sectionTitle}>Personal Information</Text>
+      {/* Scrollable Content (only show after loading is false) */}
+      {!loading && (
+        <ScrollView
+          style={styles.container}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <View style={styles.profileInfoCard}>
+            <Text style={styles.sectionTitle}>Personal Information</Text>
 
-          <View style={styles.infoItem}>
-            <View style={styles.infoIcon}>
-              <Text style={styles.iconText}>👤</Text>
-            </View>
-            <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Full Name</Text>
-              <Text style={styles.infoValue}>{profileData.name || 'Not provided'}</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoItem}>
-            <View style={styles.infoIcon}>
-              <Text style={styles.iconText}>📧</Text>
-            </View>
-            <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Email Address</Text>
-              <Text style={styles.infoValue}>{profileData.email || 'Not provided'}</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoItem}>
-            <View style={styles.infoIcon}>
-              <Text style={styles.iconText}>📱</Text>
-            </View>
-            <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Phone Number</Text>
-              <Text style={styles.infoValue}>{profileData.phone || 'Not provided'}</Text>
-            </View>
-          </View>
-
-          {profileData.tier && (
             <View style={styles.infoItem}>
-              <View style={styles.infoIcon}>
-                <Text style={styles.iconText}>⭐</Text>
-              </View>
+              <View style={styles.infoIcon}><Text style={styles.iconText}>👤</Text></View>
               <View style={styles.infoTextContainer}>
-                <Text style={styles.infoLabel}>Tier</Text>
-                <Text style={styles.infoValue}>{profileData.tier}</Text>
+                <Text style={styles.infoLabel}>Full Name</Text>
+                <Text style={styles.infoValue}>{profileData.name || 'Not provided'}</Text>
               </View>
             </View>
-          )}
-        </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actionContainer}>
-          {/* Edit Profile Button */}
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => setEditModalVisible(true)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.actionButtonContent}>
-              <View style={[styles.actionIconLarge, { backgroundColor: '#7C3AED' }]}>
-                <Text style={styles.actionIconTextLarge}>✏️</Text>
-              </View>
-              <View style={styles.actionTextContainer}>
-                <Text style={styles.actionTitle}>Edit Profile</Text>
-                <Text style={styles.actionSubtitle}>Update your personal information</Text>
+            <View style={styles.infoItem}>
+              <View style={styles.infoIcon}><Text style={styles.iconText}>📧</Text></View>
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>Email Address</Text>
+                <Text style={styles.infoValue}>{profileData.email || 'Not provided'}</Text>
               </View>
             </View>
-          </TouchableOpacity>
-        </View>
 
-        {/* Logout Section */}
-        <View style={styles.logoutContainer}>
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={handleLogout}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.logoutIcon}>🚪</Text>
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+            <View style={styles.infoItem}>
+              <View style={styles.infoIcon}><Text style={styles.iconText}>📱</Text></View>
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>Phone Number</Text>
+                <Text style={styles.infoValue}>{profileData.phone || 'Not provided'}</Text>
+              </View>
+            </View>
 
+            {profileData.tier && (
+              <View style={styles.infoItem}>
+                <View style={styles.infoIcon}><Text style={styles.iconText}>⭐</Text></View>
+                <View style={styles.infoTextContainer}>
+                  <Text style={styles.infoLabel}>Tier</Text>
+                  <Text style={styles.infoValue}>{profileData.tier}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionContainer}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => setEditModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.actionButtonContent}>
+                <View style={[styles.actionIconLarge, { backgroundColor: '#7C3AED' }]}>
+                  <Text style={styles.actionIconTextLarge}>✏️</Text>
+                </View>
+                <View style={styles.actionTextContainer}>
+                  <Text style={styles.actionTitle}>Edit Profile</Text>
+                  <Text style={styles.actionSubtitle}>Update your personal information</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.logoutContainer}>
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
+              <Text style={styles.logoutIcon}>🚪</Text>
+              <Text style={styles.logoutText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      )}
+
+      {/* Loader */}
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#7C3AED" />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      )}
+
+      {/* Footer and Modals */}
       <EditProfile
         visible={editModalVisible}
         profileData={profileData}
@@ -243,6 +247,7 @@ const ProfileScreen = ({ navigation }) => {
       <Footer />
     </View>
   );
+
 };
 
 export default ProfileScreen;
@@ -447,5 +452,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#dc2626',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    // backgroundColor: 'rgba(255, 255, 255, 0.7)', 
+    zIndex: 999,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
   },
 });

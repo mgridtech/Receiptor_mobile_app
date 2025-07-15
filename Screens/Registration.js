@@ -8,11 +8,11 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   ScrollView,
-  Platform,
-  Alert
+  Platform
 } from 'react-native';
 import { register } from '../Services/Services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Toast from 'react-native-toast-message';
 
 const Registration = ({ navigation }) => {
   const [name, setName] = useState('');
@@ -38,22 +38,24 @@ const Registration = ({ navigation }) => {
       } else {
         console.log('User ID not found in response data.');
       }
-      Alert.alert(
-        'Success',
-        'Registration successful! You can now login.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.replace('Login'),
-          },
-        ]
-      );
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Registration successful! Login now.',
+        position: 'top',
+        topOffset: 130,
+        visibilityTime: 3000,
+      });
+      navigation.replace('Login');
     } else {
-      Alert.alert(
-        'Error',
-        response.error || 'Registration failed. Please try again.',
-        [{ text: 'OK' }]
-      );
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: response.error || 'Registration failed. Please try again.',
+        position: 'top',
+        topOffset: 130,
+        visibilityTime: 3000,
+      });
     }
   };
 

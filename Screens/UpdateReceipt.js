@@ -12,6 +12,8 @@ const UpdateReceipt = ({
   receiptData
 }) => {
   const [showReminderPicker, setShowReminderPicker] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   return (
     <Modal
       animationType="fade"
@@ -31,9 +33,20 @@ const UpdateReceipt = ({
                 <Text style={styles.cancelButton}>Cancel</Text>
               </TouchableOpacity>
               <Text style={styles.modalTitle}>Update Receipt</Text>
-              <TouchableOpacity onPress={handleSaveReceipt}>
-                <Text style={styles.saveButton}>Save</Text>
+              <TouchableOpacity
+                onPress={async () => {
+                  setSaving(true);
+                  try {
+                    await handleSaveReceipt();
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving}
+              >
+                <Text style={styles.saveButton}>{saving ? 'Saving...' : 'Save'}</Text>
               </TouchableOpacity>
+
             </View>
 
             {/* Form Fields */}

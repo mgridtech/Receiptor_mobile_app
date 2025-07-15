@@ -8,7 +8,6 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ScrollView,
 } from 'react-native';
 import ForgotPasswordScreen from './ForgotPass';
@@ -16,16 +15,27 @@ import auth from '@react-native-firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jwtDecode } from 'jwt-decode';
 import { baseURL, DeviceToken, updateDeviceToken } from '../Services/Services';
+import Toast from 'react-native-toast-message';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      return Alert.alert('Missing fields', 'Please enter both email and password');
+      Toast.show({
+        type: 'error',
+        text1: 'Missing fields',
+        text2: 'Please enter both email and password',
+        position: 'top',
+        topOffset: 130,
+        visibilityTime: 3000,
+      });
+      return;
     }
+    setIsLoading(true);
 
     try {
       const { user } = await auth().signInWithEmailAndPassword(email, password);
@@ -141,17 +151,26 @@ const LoginScreen = ({ navigation }) => {
         } else {
           console.warn('FCM token not found — skipping device token registration.');
         }
-        Alert.alert(
-          'Login Successful',
-          `Welcome back, ${displayName}!`,
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.replace('Home'),
-            },
-          ],
-          { cancelable: false }
-        );
+        Toast.show({
+          type: 'success',
+          text1: 'Login Successful',
+          text2: `Welcome back, ${displayName}!`,
+          position: 'top',
+          topOffset: 130,
+          visibilityTime: 3000,
+          text1Style: {
+            fontSize: 18,
+            fontWeight: 'bold',
+            color: '#1F2937',
+          },
+          text2Style: {
+            fontSize: 16,
+            color: '#374151',
+          },
+          onHide: () => {
+            navigation.replace('Home');
+          },
+        });
       } else {
         await AsyncStorage.setItem('userEmail', user.email);
 
@@ -183,7 +202,16 @@ const LoginScreen = ({ navigation }) => {
           break;
       }
 
-      Alert.alert('Login Failed', message);
+      Toast.show({
+        type: 'error',
+        text1: 'Login Failed',
+        text2: message,
+        position: 'top',
+        topOffset: 130,
+        visibilityTime: 3500,
+      });
+    }finally{
+      setIsLoading(false);
     }
   };
 
@@ -230,7 +258,7 @@ const LoginScreen = ({ navigation }) => {
         </View>
 
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
-          <Text style={styles.buttonText}>Sign In</Text>
+          <Text style={styles.buttonText}>{isLoading ? 'Signing In...' : 'Sign In'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

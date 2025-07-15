@@ -1,8 +1,7 @@
 import { NativeModules } from 'react-native';
 const { VoiceNotification } = NativeModules;
 import React, { useEffect } from 'react'
-import { Platform, Alert, PermissionsAndroid, AppState } from 'react-native'
-import firebase from '@react-native-firebase/app';
+import { Platform, PermissionsAndroid } from 'react-native'
 import messaging from '@react-native-firebase/messaging';
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
@@ -20,8 +19,66 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import notifee, { AndroidImportance } from '@notifee/react-native';
 import Tts from 'react-native-tts';
 import AddMedicine from './Screens/AddMedicine';
+import Medicines from './Screens/Medicines';
+import Toast, { BaseToast,ErrorToast } from 'react-native-toast-message';
+import MedicineDetails from './Screens/MedicineDetails';
 
 const Stack = createNativeStackNavigator()
+
+const toastConfig = {
+  success: (props:any) => (
+    <BaseToast
+      {...props}
+      style={{
+        borderLeftColor: '#A78BFA', // lighter violet (success variant)
+        backgroundColor: '#1F2937', // dark gray background
+        height: 80,
+        borderWidth: 1,
+        borderColor: '#A78BFA',
+        shadowColor: '#A78BFA',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 5,
+      }}
+      text1Style={{
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#EDE9FE', // light text for visibility
+      }}
+      text2Style={{
+        fontSize: 16,
+        color: '#DDD6FE',
+      }}
+    />
+  ),
+  error: (props:any) => (
+    <ErrorToast
+      {...props}
+      style={{
+        borderLeftColor: '#C084FC', // slightly pinkish-violet (error variant)
+        backgroundColor: '#1F2937',
+        height: 80,
+        borderWidth: 1,
+        borderColor: '#C084FC',
+        shadowColor: '#C084FC',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 5,
+      }}
+      text1Style={{
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#F5F3FF',
+      }}
+      text2Style={{
+        fontSize: 16,
+        color: '#E9D5FF',
+      }}
+    />
+  ),
+};
 
 const App = () => {
   const speakText = (text: any) => {
@@ -145,7 +202,10 @@ const App = () => {
         <Stack.Screen name="Settings" component={Settings} />
         <Stack.Screen name="AddReceipt" component={AddReceipt} />
         <Stack.Screen name="AddMedicine" component={AddMedicine} />
+        <Stack.Screen name="Medicines" component={Medicines} />
+        <Stack.Screen name="MedicineDetails" component={MedicineDetails} />
       </Stack.Navigator>
+      <Toast config={toastConfig} />
     </NavigationContainer>
   )
 }

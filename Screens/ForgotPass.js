@@ -9,12 +9,18 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
+import { resetPassword } from '../Services/Services';
+import Toast from 'react-native-toast-message';
+
+console.log('=== IMPORT DEBUG ===');
+console.log('resetPassword imported:', resetPassword);
+console.log('typeof resetPassword:', typeof resetPassword);
 
 const ForgotPasswordScreen = ({ visible, onClose }) => {
     const [email, setEmail] = useState('');
     const [showSendLink, setShowSendLink] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
-    
+
 
     const handleEmailChange = (text) => {
         setEmail(text);
@@ -22,9 +28,63 @@ const ForgotPasswordScreen = ({ visible, onClose }) => {
         setShowSuccess(false);
     };
 
-    const handleSendLink = () => {
-        setShowSuccess(true);
-        setShowSendLink(false);
+    const handleSendLink = async () => {
+        console.log('=== HANDLE SEND LINK DEBUG START ===');
+        console.log('Email value:', email);
+        console.log('Setting isLoading to true');
+
+        setIsLoading(true);
+
+        try {
+            console.log('About to call resetPassword with email:', email);
+
+            const result = await resetPassword(email);
+
+            console.log('=== RESET PASSWORD RESULT ===');
+            console.log('Result type:', typeof result);
+            console.log('Result:', JSON.stringify(result, null, 2));
+            console.log('Result.success:', result.success);
+            console.log('Result.error:', result.error);
+            console.log('Result.data:', result.data);
+
+            if (result.success) {
+                console.log('Success path - setting showSuccess to true');
+                setShowSuccess(true);
+                setShowSendLink(false);
+            } else {
+                console.log('Error path - showing alert with error:', result.error);
+                Toast.show({
+                    type: 'error',
+                    text1: 'Error',
+                    text2: result.error || 'Failed to send reset link. Please try again.',
+                    position: 'top',
+                    topOffset: 130,
+                    visibilityTime: 3000,
+                });
+            }
+
+        } catch (error) {
+            console.error('=== CATCH BLOCK ERROR ===');
+            console.error('Error type:', error.constructor.name);
+            console.error('Error message:', error.message);
+            console.error('Error stack:', error.stack);
+            console.error('Full error object:', error);
+
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'Network error occurred. Please try again.',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
+        } finally {
+            console.log('=== FINALLY BLOCK ===');
+            console.log('Setting isLoading to false');
+            setIsLoading(false);
+        }
+
+        console.log('=== HANDLE SEND LINK DEBUG END ===');
     };
 
     return (
@@ -66,11 +126,11 @@ const ForgotPasswordScreen = ({ visible, onClose }) => {
                         </Text>
                     )}
                     <TouchableOpacity
-    style={styles.closeButton}
-    onPress={onClose}
->
-    <Text style={styles.closeButtonText}>Close</Text>
-</TouchableOpacity>
+                        style={styles.closeButton}
+                        onPress={onClose}
+                    >
+                        <Text style={styles.closeButtonText}>Close</Text>
+                    </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
         </Modal>
@@ -124,22 +184,22 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: 'bold',
     },
-closeButton: {
-    width: 120,
-    paddingVertical: 12,
-    borderRadius: 30,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#ef4444',
-    backgroundColor: '#fff',
-    marginTop: 16,
-    alignSelf: 'center',
-},
-closeButtonText: {
-    color: '#ef4444',
-    fontSize: 16,
-    fontWeight: 'bold',
-},    successText: {
+    closeButton: {
+        width: 120,
+        paddingVertical: 12,
+        borderRadius: 30,
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#ef4444',
+        backgroundColor: '#fff',
+        marginTop: 16,
+        alignSelf: 'center',
+    },
+    closeButtonText: {
+        color: '#ef4444',
+        fontSize: 16,
+        fontWeight: 'bold',
+    }, successText: {
         fontSize: 16,
         color: '#16a34a',
         textAlign: 'center',

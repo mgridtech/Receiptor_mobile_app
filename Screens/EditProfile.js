@@ -9,10 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
-  Alert,
 } from 'react-native';
 import { updateUserProfile } from '../Services/Services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Toast from 'react-native-toast-message';
 
 const EditProfile = ({
   visible,
@@ -32,34 +32,62 @@ const EditProfile = ({
   };
 
   const handleSave = async () => {
-  if (!tempProfileData.name.trim() || !tempProfileData.email.trim() || !tempProfileData.phone.trim()) {
-    Alert.alert('Error', 'All fields are required.');
-    return;
-  }
-
-  try {
-    const result = await updateUserProfile({
-      name: tempProfileData.name.trim(),
-      email: tempProfileData.email.trim(),
-      phone: tempProfileData.phone.trim(),
-    });
-
-    if (result.success) {
-      await AsyncStorage.setItem('userName', tempProfileData.name.trim());
-      console.log('Updated name in AsyncStorage:', tempProfileData.name.trim());
-      
-      if (onSave) onSave(tempProfileData);
-      onClose();
-      Alert.alert('Success', 'Profile updated successfully!');
-    } else {
-      Alert.alert('Error', result.error || 'Failed to update profile');
+    if (!tempProfileData.name.trim() || !tempProfileData.email.trim() || !tempProfileData.phone.trim()) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'All fields are required.',
+        position: 'top',
+        topOffset: 130,
+        visibilityTime: 3000,
+      });
+      return;
     }
-  } catch (error) {
-    console.error('Error in handleSave:', error);
-    Alert.alert('Error', 'An unexpected error occurred');
-  } finally {
-  }
-};
+
+    try {
+      const result = await updateUserProfile({
+        name: tempProfileData.name.trim(),
+        email: tempProfileData.email.trim(),
+        phone: tempProfileData.phone.trim(),
+      });
+
+      if (result.success) {
+        await AsyncStorage.setItem('userName', tempProfileData.name.trim());
+        console.log('Updated name in AsyncStorage:', tempProfileData.name.trim());
+
+        if (onSave) onSave(tempProfileData);
+        onClose();
+        Toast.show({
+          type: 'success',
+          text1: 'Success',
+          text2: 'Profile updated successfully!',
+          position: 'top',
+          topOffset: 130,
+          visibilityTime: 3000,
+        });
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: result.error || 'Failed to update profile',
+          position: 'top',
+          topOffset: 130,
+          visibilityTime: 3000,
+        });
+      }
+    } catch (error) {
+      console.error('Error in handleSave:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'An unexpected error occurred',
+        position: 'top',
+        topOffset: 130,
+        visibilityTime: 3000,
+      });
+    } finally {
+    }
+  };
 
   return (
     <Modal

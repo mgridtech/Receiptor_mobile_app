@@ -215,6 +215,13 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </TouchableOpacity>
           <View style={styles.statDivider} />
+          <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Medicines')} activeOpacity={0.7}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{medicalCount}</Text>
+              <Text style={styles.statLabel}>Medicines</Text>
+            </View>
+          </TouchableOpacity>
+          <View style={styles.statDivider} />
           <TouchableOpacity
             style={styles.statItem}
             // onPress={async () => {
@@ -645,7 +652,7 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    height: 40,
+    height: 70,
     backgroundColor: '#e5e7eb',
   },
 });

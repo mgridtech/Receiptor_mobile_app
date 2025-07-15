@@ -1,17 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
     TextInput,
     TouchableOpacity,
     ScrollView,
-    Alert,
     Platform,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import DropDownPicker from 'react-native-dropdown-picker';
+import Toast from 'react-native-toast-message';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createMedicine } from '../Services/Services';
 
-const MedicalAddForm = ({ navigation, onSave }) => {
+const MedicalAddForm = ({ navigation, selectedFile, onSave, ocrData }) => {
     const [formData, setFormData] = useState({
         medicineName: '',
         note: '',
@@ -30,8 +32,12 @@ const MedicalAddForm = ({ navigation, onSave }) => {
     const [hour, setHour] = useState('');
     const [minute, setMinute] = useState('');
     const [savedTimes, setSavedTimes] = useState([]);
-    const [ampm, setAmPm] = useState('AM');
-    const [showAmPmDropdown, setShowAmPmDropdown] = useState(false);
+    const [reminderOpen, setReminderOpen] = useState(false);
+    const [reminderValue, setReminderValue] = useState(null);
+    const [reminderItems, setReminderItems] = useState([]);
+    const [validUntil, setValidUntil] = useState(new Date());
+    const [showValidUntilPicker, setShowValidUntilPicker] = useState(false);
+
 
     const reminderOptions = [
         { label: 'Once', value: 'Once' },
@@ -39,6 +45,10 @@ const MedicalAddForm = ({ navigation, onSave }) => {
         { label: 'Weekly', value: 'Weekly' },
         { label: 'Custom (enter number of days)', value: 'Custom' },
     ];
+    useEffect(() => {
+        setReminderItems(reminderOptions);
+    }, []);
+
 
     const handleReminderTypeChange = (value) => {
         setFormData({
@@ -89,114 +99,224 @@ const MedicalAddForm = ({ navigation, onSave }) => {
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
 
-    const handleSave = () => {
+
+    const handleSave = async () => {
         if (!formData.medicineName.trim()) {
-            Alert.alert('Error', 'Please enter medicine name');
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'Please enter medicine name',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
             return;
         }
 
         if (!formData.reminderType) {
-            Alert.alert('Error', 'Please select reminder type');
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'Please select reminder type',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
             return;
         }
 
         if (formData.reminderType === 'Custom' && !formData.customDays.trim()) {
-            Alert.alert('Error', 'Please enter number of days for custom reminder');
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'Please enter number of days for custom reminder',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
             return;
         }
 
-        if (formData.reminderType === 'Daily' && savedTimes.length === 0) {
-            Alert.alert('Error', 'Please add at least one reminder time for daily reminder');
+        if ((formData.reminderType === 'Daily' || formData.reminderType === 'Weekly' || formData.reminderType === 'Custom') && savedTimes.length === 0) {
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: `Please add at least one reminder time for ${formData.reminderType.toLowerCase()} reminder`,
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
             return;
         }
 
-        if (formData.reminderType === 'Weekly' && savedTimes.length === 0) {
-            Alert.alert('Error', 'Please add at least one reminder time for weekly reminder');
-            return;
+        try {
+            const apiFormData = new FormData();
+
+            apiFormData.append('name', formData.medicineName);
+            apiFormData.append('note', formData.note);
+            apiFormData.append('validUntil', validUntil.toISOString().split('T')[0]); // Format: YYYY-MM-DD
+            apiFormData.append('notifyOnce', formData.reminderType === 'Once' ? 'true' : 'false');
+
+            let notificationDays = 0;
+            let notificationTimes = [];
+            let specificNotificationDateTimes = [];
+
+            switch (formData.reminderType) {
+                case 'Once':
+                    notificationDays = 0;
+                    notificationTimes = [];
+                    const onceDateTime = new Date(formData.reminderDate);
+                    const reminderTime = new Date(formData.reminderTime);
+                    onceDateTime.setHours(reminderTime.getHours(), reminderTime.getMinutes(), 0, 0);
+                    specificNotificationDateTimes = [onceDateTime.toISOString()];
+                    break;
+
+                case 'Daily':
+                    notificationDays = 1;
+                    notificationTimes = savedTimes;
+                    break;
+
+                case 'Weekly':
+                    notificationDays = 7;
+                    notificationTimes = savedTimes;
+                    break;
+
+                case 'Custom':
+                    notificationDays = parseInt(formData.customDays, 10);
+                    notificationTimes = savedTimes;
+                    break;
+            }
+
+            apiFormData.append('notificationDays', notificationDays.toString());
+            apiFormData.append('notificationTimes', JSON.stringify(notificationTimes));
+            apiFormData.append('specificNotificationDateTimes', JSON.stringify(specificNotificationDateTimes));
+
+            if (selectedFile && selectedFile.length > 0) {
+                const file = selectedFile[0];
+                const maxFileSize = 2 * 1024 * 1024; // 2MB limit
+
+                if (file.fileSize && file.fileSize > maxFileSize) {
+                    Toast.show({
+                        type: 'error',
+                        text1: 'Error',
+                        text2: 'File too large. Max 2MB allowed.',
+                        position: 'top',
+                        topOffset: 130,
+                        visibilityTime: 3000,
+                    });
+                    setSaving(false);
+                    return;
+                }
+
+                apiFormData.append('medicineFile', {
+                    uri: file.uri,
+                    type: file.mimeType || 'image/jpeg',
+                    name: file.name || 'medicine.jpg',
+                });
+            }
+
+            console.log('API Data being sent:', {
+                name: formData.medicineName,
+                note: formData.note,
+                validUntil: validUntil.toISOString().split('T')[0],
+                notifyOnce: formData.reminderType === 'Once' ? 'true' : 'false',
+                notificationDays: notificationDays.toString(),
+                notificationTimes: JSON.stringify(notificationTimes),
+                specificNotificationDateTimes: JSON.stringify(specificNotificationDateTimes)
+            });
+
+            const token = await AsyncStorage.getItem('userToken');
+            const result = await createMedicine(apiFormData, token);
+
+            console.log('Medicine created successfully:', result);
+
+            if (onSave) {
+                onSave(result);
+            }
+
+            Toast.show({
+                type: 'success',
+                text1: 'Success',
+                text2: 'Medicine added successfully!',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+                onHide: () => {
+                    navigation?.goBack();
+                },
+            });
+
+        } catch (error) {
+            console.error('Error creating medicine:', error);
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: error.message || 'Failed to save medicine',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
         }
-
-        let finalReminderType = formData.reminderType;
-        let scheduleDetails = {};
-
-        switch (formData.reminderType) {
-            case 'Once':
-                finalReminderType = `Once on ${formatDate(formData.reminderDate)} at ${formatTime(formData.reminderTime)}`;
-                scheduleDetails = {
-                    date: formData.reminderDate,
-                    time: formData.reminderTime
-                };
-                break;
-            case 'Daily':
-                finalReminderType = `Daily at ${savedTimes.join(', ')}`;
-                scheduleDetails = {
-                    times: savedTimes
-                };
-                break;
-            case 'Weekly':
-                finalReminderType = `Weekly at ${savedTimes.join(', ')}`;
-                scheduleDetails = {
-                    times: savedTimes
-                };
-                break;
-            case 'Custom':
-                finalReminderType = `Every ${formData.customDays} days`;
-                scheduleDetails = {
-                    customDays: formData.customDays
-                };
-                break;
-        }
-
-        const medicineData = {
-            medicineName: formData.medicineName,
-            note: formData.note,
-            reminderType: finalReminderType,
-            originalReminderType: formData.reminderType,
-            scheduleDetails: scheduleDetails,
-            customDays: formData.reminderType === 'Custom' ? formData.customDays : null,
-        };
-
-        console.log('Medicine data to save:', medicineData);
-
-        if (onSave) {
-            onSave(medicineData);
-        }
-
-        Alert.alert('Success', 'Medicine added successfully!', [
-            { text: 'OK', onPress: () => navigation?.goBack() }
-        ]);
     };
 
     const handleAddTime = () => {
-    const hh = parseInt(hour, 10);
-    const mm = parseInt(minute, 10);
+        const hh = parseInt(hour, 10);
+        const mm = parseInt(minute, 10);
 
-    if (isNaN(hh) || isNaN(mm)) {
-        Alert.alert('Invalid Input', 'Please enter valid numeric values for hour and minute.');
-        return;
-    }
+        if (isNaN(hh) || isNaN(mm)) {
+            Toast.show({
+                type: 'error',
+                text1: 'Invalid Input',
+                text2: 'Please enter valid numeric values for hour and minute.',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
+            return;
+        }
 
-    if (hh < 0 || hh > 23) {
-        Alert.alert('Invalid Hour', 'Please enter an hour between 00 and 23.');
-        return;
-    }
+        if (hh < 0 || hh > 23) {
+            Toast.show({
+                type: 'error',
+                text1: 'Invalid Hour',
+                text2: 'Please enter an hour between 00 and 23.',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
+            return;
+        }
 
-    if (mm < 0 || mm > 59) {
-        Alert.alert('Invalid Minute', 'Please enter minutes between 00 and 59.');
-        return;
-    }
+        if (mm < 0 || mm > 59) {
+            Toast.show({
+                type: 'error',
+                text1: 'Invalid Minute',
+                text2: 'Please enter minutes between 00 and 59.',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
+            return;
+        }
 
-    if (savedTimes.length >= 3) {
-        Alert.alert('Limit Reached', 'You can only add maximum 3 reminder times.');
-        return;
-    }
+        if (savedTimes.length >= 3) {
+            Toast.show({
+                type: 'error',
+                text1: 'Limit Reached',
+                text2: 'You can only add maximum 3 reminder times.',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
+            return;
+        }
 
-    const formattedTime = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
-    setSavedTimes(prev => [...prev, formattedTime]);
+        const formattedTime = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+        setSavedTimes(prev => [...prev, formattedTime]);
 
-    // Reset inputs
-    setHour('');
-    setMinute('');
-};
+        setHour('');
+        setMinute('');
+    };
 
 
 
@@ -245,29 +365,33 @@ const MedicalAddForm = ({ navigation, onSave }) => {
                     />
 
                     <Text>Reminder Type *</Text>
-                    <View style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 12 }}>
-                        <Picker
-                            selectedValue={formData.reminderType}
-                            onValueChange={handleReminderTypeChange}
-                            style={{ color: '#000' }}
-                            dropdownIconColor="#000"
-                        >
-                            <Picker.Item
-                                label="Select reminder type"
-                                value=""
-                                enabled={false}
-                            />
-                            {reminderOptions.map(option => (
-                                <Picker.Item
-                                    key={option.value}
-                                    label={option.label}
-                                    value={option.value}
-                                />
-                            ))}
-                        </Picker>
+                    <View style={{ zIndex: reminderOpen ? 1000 : 1, marginBottom: reminderOpen ? 180 : 20 }}>
+                        <DropDownPicker
+                            open={reminderOpen}
+                            value={reminderValue}
+                            items={reminderItems}
+                            setOpen={setReminderOpen}
+                            setValue={(callback) => {
+                                const value = callback(reminderValue);
+                                setReminderValue(value);
+                                handleReminderTypeChange(value);
+                            }}
+                            setItems={setReminderItems}
+                            placeholder="Select reminder type"
+                            listMode="SCROLLVIEW"
+                            style={{
+                                borderColor: '#ccc',
+                                borderRadius: 8,
+                                backgroundColor: '#fff',
+                            }}
+                            dropDownContainerStyle={{
+                                borderColor: '#ccc',
+                                zIndex: 999,
+                            }}
+                        />
                     </View>
 
-                    {/* Date and Time Pickers for "Once" option */}
+
                     {formData.reminderType === 'Once' && (
                         <View>
                             <Text>Date *</Text>
@@ -306,7 +430,6 @@ const MedicalAddForm = ({ navigation, onSave }) => {
                         </View>
                     )}
 
-                    {/* Custom Days Input - Only show when Custom is selected */}
                     {showCustomInput && (
                         <>
                             <Text>Number of Days *</Text>
@@ -372,90 +495,6 @@ const MedicalAddForm = ({ navigation, onSave }) => {
                                     maxLength={2}
                                 />
 
-                                {/* <View style={{ position: 'relative', width: '22%' }}>
-                                    <TouchableOpacity
-                                        style={{
-                                            borderWidth: 1,
-                                            borderColor: '#ccc',
-                                            borderRadius: 6,
-                                            width: '100%',
-                                            height: 40,
-                                            backgroundColor: '#fff',
-                                            justifyContent: 'center',
-                                            alignItems: 'center',
-                                            paddingHorizontal: 8,
-                                            flexDirection: 'row',
-                                        }}
-                                        onPress={() => setShowAmPmDropdown(!showAmPmDropdown)}
-                                    >
-                                        <Text style={{
-                                            color: '#000',
-                                            fontWeight: 'bold',
-                                            fontSize: 16,
-                                            flex: 1,
-                                            textAlign: 'center'
-                                        }}>
-                                            {ampm}
-                                        </Text>
-                                        <Text style={{ color: '#666', fontSize: 10 }}>▼</Text>
-                                    </TouchableOpacity>
-
-                                    {showAmPmDropdown && (
-                                        <View style={{
-                                            position: 'absolute',
-                                            top: 42,
-                                            left: 0,
-                                            width: '100%',
-                                            backgroundColor: '#fff',
-                                            borderWidth: 1,
-                                            borderColor: '#ccc',
-                                            borderRadius: 6,
-                                            zIndex: 1000,
-                                            elevation: 5,
-                                            shadowColor: '#000',
-                                            shadowOffset: { width: 0, height: 2 },
-                                            shadowOpacity: 0.1,
-                                            shadowRadius: 4,
-                                        }}>
-                                            <TouchableOpacity
-                                                style={{
-                                                    paddingVertical: 10,
-                                                    paddingHorizontal: 12,
-                                                    borderBottomWidth: 1,
-                                                    borderBottomColor: '#eee'
-                                                }}
-                                                onPress={() => {
-                                                    setAmPm('AM');
-                                                    setShowAmPmDropdown(false);
-                                                }}
-                                            >
-                                                <Text style={{
-                                                    color: '#000',
-                                                    fontWeight: ampm === 'AM' ? 'bold' : 'normal',
-                                                    textAlign: 'center',
-                                                    fontSize: 14
-                                                }}>AM</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                style={{
-                                                    paddingVertical: 10,
-                                                    paddingHorizontal: 12,
-                                                }}
-                                                onPress={() => {
-                                                    setAmPm('PM');
-                                                    setShowAmPmDropdown(false);
-                                                }}
-                                            >
-                                                <Text style={{
-                                                    color: '#000',
-                                                    fontWeight: ampm === 'PM' ? 'bold' : 'normal',
-                                                    textAlign: 'center',
-                                                    fontSize: 14
-                                                }}>PM</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    )}
-                                </View> */}
                                 <TouchableOpacity
                                     style={{
                                         backgroundColor: savedTimes.length >= 3 ? '#ccc' : '#10B981',
@@ -511,6 +550,22 @@ const MedicalAddForm = ({ navigation, onSave }) => {
                             )}
                         </>
                     )}
+
+                    <Text>Valid Until</Text>
+                    <TouchableOpacity
+                        style={{
+                            borderWidth: 1,
+                            borderColor: '#ccc',
+                            borderRadius: 8,
+                            marginBottom: 12,
+                            padding: 12,
+                            backgroundColor: '#fff'
+                        }}
+                        onPress={() => setShowValidUntilPicker(true)}
+                    >
+                        <Text style={{ color: '#000' }}>{formatDate(validUntil)}</Text>
+                    </TouchableOpacity>
+
 
                     <Text>Note (optional)</Text>
                     <TextInput
@@ -569,6 +624,22 @@ const MedicalAddForm = ({ navigation, onSave }) => {
                     onChange={handleTimeChange}
                 />
             )}
+
+            {showValidUntilPicker && (
+                <DateTimePicker
+                    value={validUntil}
+                    mode="date"
+                    display="default"
+                    onChange={(event, selectedDate) => {
+                        setShowValidUntilPicker(false);
+                        if (selectedDate) {
+                            setValidUntil(selectedDate);
+                        }
+                    }}
+                    minimumDate={new Date()}
+                />
+            )}
+
         </View>
     );
 };

@@ -6,7 +6,6 @@ import {
     StyleSheet,
     ScrollView,
     SafeAreaView,
-    Alert,
 } from 'react-native';
 import MedicalAddForm from './MedicalAddForm';
 import Footer from './FooterH';

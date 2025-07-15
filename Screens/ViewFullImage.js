@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, View, Image, TouchableOpacity, Text, StyleSheet, Alert, Platform, PermissionsAndroid, Linking } from 'react-native';
 import RNFS from 'react-native-fs';
+import Toast from 'react-native-toast-message';
 
 const ViewFullImage = ({ visible, onClose, imageSource }) => {
     const [isDownloading, setIsDownloading] = useState(false);
@@ -30,15 +31,36 @@ const ViewFullImage = ({ visible, onClose, imageSource }) => {
                 }).promise;
 
                 if (downloadResult.statusCode === 200) {
-                    await RNFS.scanFile(downloadPath);
-                    Alert.alert('Success', `Image saved to Downloads folder: ${fileName}`);
-                } else {
-                    Alert.alert('Error', 'Failed to download image');
-                }
-            } catch (error) {
-                console.error('Download error:', error);
-                Alert.alert('Error', 'Failed to save image: ' + error.message);
-            } finally {
+    await RNFS.scanFile(downloadPath);
+    Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: `Image saved to Downloads folder: ${fileName}`,
+        position: 'top',
+        topOffset: 130,
+        visibilityTime: 3000,
+    });
+} else {
+    Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to download image',
+        position: 'top',
+        topOffset: 130,
+        visibilityTime: 3000,
+    });
+}
+} catch (error) {
+    console.error('Download error:', error);
+    Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to save image: ' + error.message,
+        position: 'top',
+        topOffset: 130,
+        visibilityTime: 3000,
+    });
+}finally {
                 setIsDownloading(false);
             }
         }

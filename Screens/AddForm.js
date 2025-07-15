@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { createReceipt, fetchCategories } from '../Services/Services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { extractUserIdFromToken } from './ExtractUserId';
+import DropDownPicker from 'react-native-dropdown-picker';
+import Toast from 'react-native-toast-message';
 
 const getCurrentDate = () => {
     const today = new Date();
@@ -26,13 +26,39 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [categories, setCategories] = useState([]);
     const [loadingCategories, setLoadingCategories] = useState(true);
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [dropdownItems, setDropdownItems] = useState([]);
+    const [dropdownValue, setDropdownValue] = useState(null);
+    const [amountError, setAmountError] = useState('');
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        if (categories.length > 0) {
+            const formattedItems = categories.map(cat => ({
+                label: cat.name,
+                value: cat.name
+            }));
+            setDropdownItems(formattedItems);
+        }
+    }, [categories]);
+
+    useEffect(() => {
+        setDropdownValue(formData.groupName);
+    }, [formData.groupName]);
 
     useEffect(() => {
         const getCategories = async () => {
             try {
                 const token = await AsyncStorage.getItem('userToken');
                 if (!token) {
-                    Alert.alert('Error', 'Authentication token not found');
+                    Toast.show({
+                        type: 'error',
+                        text1: 'Error',
+                        text2: 'Authentication token not found',
+                        position: 'top',
+                        topOffset: 130,
+                        visibilityTime: 3000,
+                    });
                     return;
                 }
 
@@ -41,11 +67,25 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
                     setCategories(response.data);
                 } else {
                     console.error('Failed to fetch categories:', response.error);
-                    Alert.alert('Error', 'Failed to load categories');
+                    Toast.show({
+                        type: 'error',
+                        text1: 'Error',
+                        text2: 'Failed to load categories',
+                        position: 'top',
+                        topOffset: 130,
+                        visibilityTime: 3000,
+                    });
                 }
             } catch (error) {
                 console.error('Error fetching categories:', error);
-                Alert.alert('Error', 'Failed to load categories');
+                Toast.show({
+                    type: 'error',
+                    text1: 'Error',
+                    text2: 'Failed to load categories',
+                    position: 'top',
+                    topOffset: 130,
+                    visibilityTime: 3000,
+                });
             } finally {
                 setLoadingCategories(false);
             }
@@ -109,14 +149,30 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
 
     const handleSave = async () => {
         if (!formData.groupName || !formData.vendorName.trim() || !formData.dateReceived || !formData.amount.trim()) {
-            Alert.alert('Error', 'Please fill all required fields.');
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'Please fill all required fields.',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
             return;
         }
+
+        setSaving(true);
 
         try {
             const userToken = await AsyncStorage.getItem('userToken');
             if (!userToken) {
-                Alert.alert('Error', 'Please login again.');
+                Toast.show({
+                    type: 'error',
+                    text1: 'Error',
+                    text2: 'Please login again.',
+                    position: 'top',
+                    topOffset: 130,
+                    visibilityTime: 3000,
+                });
                 return;
             }
 
@@ -127,10 +183,16 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
                 const maxFileSize = 2 * 1024 * 1024;
 
                 if (file.size && file.size > maxFileSize) {
-                    Alert.alert('Error', 'File too large. Max 2MB allowed.');
+                    Toast.show({
+                        type: 'error',
+                        text1: 'Error',
+                        text2: 'File too large. Max 2MB allowed.',
+                        position: 'top',
+                        topOffset: 130,
+                        visibilityTime: 3000,
+                    });
                     return;
                 }
-
                 apiFormData.append('receiptFile', {
                     uri: file.uri,
                     type: file.mimeType || 'image/jpeg',
@@ -152,19 +214,36 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
             console.log('Saving receipt...');
             const response = await createReceipt(apiFormData, userToken);
 
-            Alert.alert('Success', response.message || 'Receipt saved successfully!');
+            Toast.show({
+                type: 'success',
+                text1: 'Success',
+                text2: response.message || 'Receipt saved successfully!',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+                onHide: () => {
+                    if (onSave) onSave(formData);
 
-            if (onSave) onSave(formData);
-
-            if (formData.groupName.toLowerCase() === 'medicine') {
-                navigation.navigate('MedicalReceipts');
-            } else {
-                navigation.navigate('ReceiptsList');
-            }
+                    if (formData.groupName.toLowerCase() === 'medicine') {
+                        navigation.navigate('MedicalReceipts');
+                    } else {
+                        navigation.navigate('ReceiptsList');
+                    }
+                },
+            });
 
         } catch (error) {
             console.error('Save error:', error);
-            Alert.alert('Error', error.message || 'Failed to save receipt.');
+            Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: error.message || 'Failed to save receipt.',
+                position: 'top',
+                topOffset: 130,
+                visibilityTime: 3000,
+            });
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -214,28 +293,34 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
                     )}
 
                     <Text>Group Name *</Text>
-                    <View style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 12 }}>
-                        <Picker
-                            selectedValue={formData.groupName}
-                            onValueChange={itemValue => setFormData({ ...formData, groupName: itemValue })}
-                            style={{ color: '#000' }}
-                            dropdownIconColor="#000"
-                            enabled={!loadingCategories}
-                        >
-                            <Picker.Item
-                                label={loadingCategories ? "Loading categories..." : "Select category"}
-                                value=""
-                                enabled={false}
-                            />
-                            {categories.map(category => (
-                                <Picker.Item
-                                    key={category.id}
-                                    label={category.name}
-                                    value={category.name}
-                                />
-                            ))}
-                        </Picker>
+                    <View style={{ zIndex: dropdownOpen ? 1000 : 1, marginBottom: dropdownOpen ? 170 : 20 }}>
+                        <DropDownPicker
+                            open={dropdownOpen}
+                            value={dropdownValue}
+                            items={dropdownItems}
+                            setOpen={setDropdownOpen}
+                            setValue={(callback) => {
+                                const value = callback(dropdownValue);
+                                setDropdownValue(value);
+                                setFormData({ ...formData, groupName: value });
+                            }}
+                            setItems={setDropdownItems}
+                            placeholder={loadingCategories ? 'Loading categories...' : 'Select category'}
+                            disabled={loadingCategories}
+                            listMode="SCROLLVIEW"
+                            style={{
+                                borderColor: '#ccc',
+                                borderRadius: 8,
+                                backgroundColor: '#fff',
+                            }}
+                            dropDownContainerStyle={{
+                                borderColor: '#ccc',
+                                zIndex: 999,
+                            }}
+                        />
                     </View>
+
+
 
                     <Text>Vendor Name *</Text>
                     <TextInput
@@ -296,11 +381,25 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
                             backgroundColor: ocrData?.amount ? '#F0FDF4' : '#fff'
                         }}
                         value={formData.amount}
-                        onChangeText={text => setFormData({ ...formData, amount: text })}
+                        onChangeText={(text) => {
+                            const validAmountRegex = /^(\d+)?(\.\d{0,2})?$/;
+
+                            if (text === '' || validAmountRegex.test(text)) {
+                                setFormData({ ...formData, amount: text });
+                                setAmountError('');
+                            } else {
+                                setFormData({ ...formData, amount: text });
+                                setAmountError('Invalid amount format. Only one decimal point is allowed.');
+                            }
+                        }}
                         keyboardType="numeric"
                         placeholder="Enter amount"
                         placeholderTextColor={'black'}
                     />
+                    {amountError !== '' && (
+                        <Text style={{ color: 'red', marginBottom: 8 }}>{amountError}</Text>
+                    )}
+
 
                     <Text>Warranty or Expiry</Text>
                     <TouchableOpacity
@@ -346,7 +445,9 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
                         }}
                         onPress={handleSave}
                     >
-                        <Text style={{ color: '#fff', fontWeight: 'bold' }}>Save</Text>
+                        <Text style={{ color: '#fff', fontWeight: 'bold' }}>
+                            {saving ? 'Saving...' : 'Save'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
