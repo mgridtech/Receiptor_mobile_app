@@ -320,8 +320,6 @@ const AddForm = ({ navigation, ocrData, selectedFile, onSave }) => {
                         />
                     </View>
 
-
-
                     <Text>Vendor Name *</Text>
                     <TextInput
                         style={{

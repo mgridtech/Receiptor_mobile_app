@@ -9,22 +9,44 @@ import {
   Dimensions,
 } from 'react-native';
 import Footer from './FooterH';
-import { getReceipts } from '../Services/Services';
+import { getReceipts, getMedicines } from '../Services/Services'; // Add getMedicines import
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { extractUserIdFromToken } from './ExtractUserId';
 
 const { width } = Dimensions.get('window');
-
 
 const HomeScreen = ({ navigation }) => {
   const [userName, setUserName] = useState('');
   const [totalReceiptsCount, setTotalReceiptsCount] = useState(0);
   const [currentMonthCount, setCurrentMonthCount] = useState(0);
   const [medicalCount, setMedicalCount] = useState(0);
+  const [medicinesCount, setMedicinesCount] = useState(0); // Add new state for medicines count
   const [expiringSoonCount, setExpiringSoonCount] = useState(0);
   const [expiringSoonReceipts, setExpiringSoonReceipts] = useState([]);
   const [latestExpiringMedicalReceipt, setLatestExpiringMedicalReceipt] = useState(null);
 
+  // Separate function to fetch medicines count
+  const fetchMedicinesCount = async () => {
+    try {
+      const userToken = await AsyncStorage.getItem('userToken');
+
+      if (!userToken) {
+        console.error('Authentication required for medicines');
+        return;
+      }
+
+      const response = await getMedicines(userToken);
+      
+      if (response.success && response.data && Array.isArray(response.data)) {
+        setMedicinesCount(response.data.length);
+      } else {
+        setMedicinesCount(0);
+      }
+    } catch (err) {
+      console.error('Error fetching medicines count:', err);
+      setMedicinesCount(0);
+    }
+  };
 
   useEffect(() => {
     const fetchReceiptCounts = async () => {
@@ -130,7 +152,9 @@ const HomeScreen = ({ navigation }) => {
       }
     };
 
+    // Call both functions
     fetchReceiptCounts();
+    fetchMedicinesCount(); // Add this call to fetch medicines count
   }, []);
 
   useEffect(() => {
@@ -209,17 +233,13 @@ const HomeScreen = ({ navigation }) => {
           </TouchableOpacity>
           <View style={styles.statDivider} />
           <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('MedicalReceipts')} activeOpacity={0.7}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{medicalCount}</Text>
-              <Text style={styles.statLabel}>Medical Receipts</Text>
-            </View>
+            <Text style={styles.statNumber}>{medicalCount}</Text>
+            <Text style={styles.statLabel}>Medical Receipts</Text>
           </TouchableOpacity>
           <View style={styles.statDivider} />
           <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Medicines')} activeOpacity={0.7}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{medicalCount}</Text>
-              <Text style={styles.statLabel}>Medicines</Text>
-            </View>
+            <Text style={styles.statNumber}>{medicinesCount}</Text>
+            <Text style={styles.statLabel}>Medicines</Text>
           </TouchableOpacity>
           <View style={styles.statDivider} />
           <TouchableOpacity

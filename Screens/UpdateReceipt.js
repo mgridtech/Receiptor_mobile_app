@@ -1,7 +1,9 @@
-import { React, useState } from 'react';
+import { React, useState, useEffect } from 'react';
 import { Modal, View, KeyboardAvoidingView, Platform, TouchableOpacity, Text, ScrollView, TextInput, StyleSheet } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-
+import DropDownPicker from 'react-native-dropdown-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { fetchCategories } from '../Services/Services';
 
 const UpdateReceipt = ({
   visible,
@@ -13,6 +15,66 @@ const UpdateReceipt = ({
 }) => {
   const [showReminderPicker, setShowReminderPicker] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [categoryDropdownValue, setCategoryDropdownValue] = useState(tempReceiptData.category || null); const [categoryDropdownItems, setCategoryDropdownItems] = useState([]);
+  const [loadingCategoryOptions, setLoadingCategoryOptions] = useState(false);
+  const [showExpiryPicker, setShowExpiryPicker] = useState(false);
+
+  useEffect(() => {
+    const getCategories = async () => {
+      setLoadingCategoryOptions(true);
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (!token) {
+          Toast.show({
+            type: 'error',
+            text1: 'Error',
+            text2: 'Authentication token not found',
+            position: 'top',
+            topOffset: 130,
+            visibilityTime: 3000,
+          });
+          return;
+        }
+
+        const response = await fetchCategories(token);
+        if (response.success) {
+          const formatted = response.data.map((cat) => ({
+            label: cat.name,
+            value: cat.name,
+          }));
+          setCategoryDropdownItems(formatted);
+
+          if (tempReceiptData.groupName) {
+            setCategoryDropdownValue(tempReceiptData.groupName);
+          }
+        } else {
+          Toast.show({
+            type: 'error',
+            text1: 'Error',
+            text2: 'Failed to load categories',
+            position: 'top',
+            topOffset: 130,
+            visibilityTime: 3000,
+          });
+        }
+      } catch (error) {
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: 'Failed to load categories',
+          position: 'top',
+          topOffset: 130,
+          visibilityTime: 3000,
+        });
+      } finally {
+        setLoadingCategoryOptions(false);
+      }
+    };
+
+    getCategories();
+  }, [tempReceiptData.groupName]); 
+
 
   return (
     <Modal
@@ -56,12 +118,12 @@ const UpdateReceipt = ({
                 <TextInput
                   style={styles.input}
                   value={tempReceiptData.vendorName}
-                  onChangeText={(text) => setTempReceiptData({ ...tempReceiptData, store: text })}
+                  onChangeText={(text) => setTempReceiptData({ ...tempReceiptData, vendorName: text })}
                   placeholder="Enter store name"
                 />
               </View>
 
-              <View style={styles.formGroup}>
+              {/* <View style={styles.formGroup}>
                 <Text style={styles.label}>Date Received</Text>
                 <TextInput
                   style={styles.input}
@@ -69,16 +131,36 @@ const UpdateReceipt = ({
                   editable={false}
                   placeholder="Enter date (e.g., Dec 15, 2024)"
                 />
-              </View>
+              </View> */}
 
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Transaction Category</Text>
-                <TextInput
-                  style={styles.input}
-                  value={tempReceiptData.groupName}
-                  onChangeText={(text) => setTempReceiptData({ ...tempReceiptData, category: text })}
-                  placeholder="Enter category"
-                />
+                <View style={{ zIndex: categoryDropdownOpen ? 1000 : 1, marginBottom: categoryDropdownOpen ? 160 : 0 }}>
+                  <DropDownPicker
+                    open={categoryDropdownOpen}
+                    value={categoryDropdownValue} 
+                    items={categoryDropdownItems} 
+                    setOpen={setCategoryDropdownOpen}
+                    setValue={(callback) => {
+                      const value = callback(categoryDropdownValue);
+                      setCategoryDropdownValue(value);
+                      setTempReceiptData({ ...tempReceiptData, groupName: value }); 
+                    }}
+                    setItems={setCategoryDropdownItems}
+                    placeholder={loadingCategoryOptions ? 'Loading categories...' : 'Select category'}
+                    disabled={loadingCategoryOptions}
+                    listMode="SCROLLVIEW"
+                    style={{
+                      borderColor: '#ccc',
+                      borderRadius: 8,
+                      backgroundColor: '#fff',
+                    }}
+                    dropDownContainerStyle={{
+                      borderColor: '#ccc',
+                      zIndex: 999,
+                    }}
+                  />
+                </View>
               </View>
 
               <View style={styles.formGroup}>
@@ -104,7 +186,7 @@ const UpdateReceipt = ({
                 </View>
               )}
 
-              <View style={styles.formGroup}>
+              {/* <View style={styles.formGroup}>
                 <Text style={styles.label}>Reminder Date</Text>
                 <TouchableOpacity
                   style={styles.input}
@@ -125,6 +207,33 @@ const UpdateReceipt = ({
                       if (event.type === 'set' && date) {
                         const formatted = `${date.getDate().toString().padStart(2, '0')}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getFullYear()}`;
                         setTempReceiptData({ ...tempReceiptData, reminderDate: formatted });
+                      }
+                    }}
+                  />
+                )}
+              </View> */}
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Expiring On</Text>
+                <TouchableOpacity
+                  style={styles.input}
+                  onPress={() => setShowExpiryPicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: tempReceiptData.expiryDate ? '#1f2937' : '#aaa' }}>
+                    {tempReceiptData.expiryDate ? tempReceiptData.expiryDate : 'Select expiry date'}
+                  </Text>
+                </TouchableOpacity>
+                {showExpiryPicker && (
+                  <DateTimePicker
+                    value={new Date()}
+                    mode="date"
+                    display="default"
+                    onChange={(event, date) => {
+                      setShowExpiryPicker(false);
+                      if (event.type === 'set' && date) {
+                        const formatted = `${date.getDate().toString().padStart(2, '0')}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getFullYear()}`;
+                        setTempReceiptData({ ...tempReceiptData, expiryDate: formatted });
                       }
                     }}
                   />
